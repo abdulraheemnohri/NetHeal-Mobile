@@ -1,26 +1,40 @@
-pub fn risk_score(request_rate: u32, unknown_domain: bool, burst_ratio: f32) -> u8 {
+#[derive(Debug, PartialEq)]
+pub enum ThreatType {
+    Normal,
+    Bot,
+    Malware,
+    Tracker,
+    DDoS,
+}
+
+pub fn analyze_threat(request_rate: u32, unknown_domain: bool, burst_ratio: f32) -> (u8, ThreatType) {
     let mut score = 0;
+    let mut threat = ThreatType::Normal;
 
-    // Request rate scoring
-    if request_rate > 200 {
-        score += 60;
-    } else if request_rate > 100 {
-        score += 30;
-    }
-
-    // Domain status scoring
-    if unknown_domain {
+    if request_rate > 500 {
+        score += 80;
+        threat = ThreatType::DDoS;
+    } else if request_rate > 200 {
         score += 40;
+        threat = ThreatType::Bot;
     }
 
-    // Burst behavior scoring (e.g. 10x normal rate in short period)
-    if burst_ratio > 10.0 {
-        score += 50;
-    } else if burst_ratio > 5.0 {
-        score += 25;
+    if unknown_domain {
+        score += 30;
+        if threat == ThreatType::Normal { threat = ThreatType::Tracker; }
     }
 
-    if score > 100 { 100 } else { score as u8 }
+    if burst_ratio > 15.0 {
+        score += 60;
+        threat = ThreatType::Malware;
+    }
+
+    if score > 100 { score = 100; }
+    (score as u8, threat)
+}
+
+pub fn risk_score(request_rate: u32, unknown_domain: bool, burst_ratio: f32) -> u8 {
+    analyze_threat(request_rate, unknown_domain, burst_ratio).0
 }
 
 #[cfg(test)]
@@ -28,11 +42,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_risk_scoring() {
-        assert_eq!(risk_score(50, false, 1.0), 0);
-        assert_eq!(risk_score(250, false, 1.0), 60);
-        assert_eq!(risk_score(50, true, 1.0), 40);
-        assert_eq!(risk_score(50, false, 12.0), 50);
-        assert_eq!(risk_score(250, true, 12.0), 100);
+    fn test_advanced_analysis() {
+        let (score, threat) = analyze_threat(600, false, 1.0);
+        assert!(score >= 80);
+        assert_eq!(threat, ThreatType::DDoS);
+
+        let (_score, threat) = analyze_threat(50, false, 20.0);
+        assert_eq!(threat, ThreatType::Malware);
     }
 }

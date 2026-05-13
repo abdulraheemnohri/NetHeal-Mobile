@@ -100,7 +100,7 @@ fun Dashboard(
         Spacer(modifier = Modifier.height(10.dp))
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(logs) { log ->
+            items(logs.take(15)) { log ->
                 ThreatItem(log)
             }
         }
