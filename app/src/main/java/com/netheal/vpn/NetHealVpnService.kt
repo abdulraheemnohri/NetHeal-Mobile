@@ -4,7 +4,12 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
+import com.netheal.data.ThreatLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -13,11 +18,11 @@ class NetHealVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var thread: Thread? = null
+    private val serviceScope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("NetHealVpn", "Service starting...")
 
-        // Setup VPN interface
         val builder = Builder()
         builder.setSession("NetHealVpn")
         builder.addAddress("10.0.0.2", 24)
@@ -26,45 +31,32 @@ class NetHealVpnService : VpnService() {
         vpnInterface = builder.establish()
 
         if (vpnInterface != null) {
-            Log.d("NetHealVpn", "VPN Interface established")
-            thread = Thread {
-                monitorTraffic(vpnInterface!!)
-            }
+            thread = Thread { monitorTraffic(vpnInterface!!) }
             thread?.start()
-        } else {
-            Log.e("NetHealVpn", "Failed to establish VPN interface")
         }
 
         return START_STICKY
     }
 
     private fun monitorTraffic(descriptor: ParcelFileDescriptor) {
-        val inputStream = FileInputStream(descriptor.fileDescriptor)
-        val outputStream = FileOutputStream(descriptor.fileDescriptor)
-        val packet = ByteBuffer.allocate(32767)
-
-        Log.d("NetHealVpn", "Monitoring traffic...")
-
         try {
             while (!Thread.interrupted()) {
-                // In a real implementation, we would read packets here:
-                // val length = inputStream.read(packet.array())
-                // But for simulation/demonstration, we'll log calls to the bridge
-
-                // Simulate periodic domain check
                 val simulatedDomain = "suspicious-tracker.com"
                 val requests = 85
-                val isSafe = RustBridge.analyze(simulatedDomain, requests)
+                val isSafe = RustBridge.analyze(simulatedDomain, requests, 1.0f)
 
                 if (!isSafe) {
                     Log.w("NetHealVpn", "🚫 Blocked connection to $simulatedDomain")
+                    serviceScope.launch {
+                        NetHealApp.database.threatLogDao().insertLog(
+                            ThreatLog(domain = simulatedDomain, riskScore = 85, action = "BLOCKED")
+                        )
+                    }
                 }
-
-                Thread.sleep(5000) // Don't spam logs
+                Thread.sleep(10000)
             }
         } catch (e: Exception) {
-            Log.e("NetHealVpn", "Error in traffic monitoring", e)
-            RustBridge.heal() // Trigger self-healing
+            RustBridge.heal()
         } finally {
             descriptor.close()
         }

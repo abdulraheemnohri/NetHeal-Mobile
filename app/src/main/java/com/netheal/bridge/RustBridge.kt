@@ -5,6 +5,6 @@ object RustBridge {
         System.loadLibrary("netheal")
     }
 
-    external fun analyze(domain: String, requests: Int): Boolean
+    external fun analyze(domain: String, requests: Int, burst: Float): Boolean
     external fun heal()
 }
