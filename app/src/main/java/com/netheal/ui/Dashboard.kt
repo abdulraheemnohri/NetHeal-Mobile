@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +34,11 @@ import com.netheal.data.ThreatLog
 import kotlinx.coroutines.delay
 
 @Composable
-fun Dashboard(onToggleFirewall: (Boolean) -> Unit, onNavigateToSettings: () -> Unit) {
+fun Dashboard(
+    onToggleFirewall: (Boolean) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToFirewall: () -> Unit
+) {
     var isEnabled by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf<ThreatLog>()) }
     val primaryColor = if (isEnabled) Color(0xFF00FFA3) else Color(0xFFFF4B4B)
@@ -71,21 +76,43 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit, onNavigateToSettings: () -> U
 
         Spacer(modifier = Modifier.height(20.dp))
         StatusIndicator(isEnabled, primaryColor)
-        Spacer(modifier = Modifier.height(30.dp))
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Navigation Shortcut
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = onNavigateToFirewall,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.List, contentDescription = null, tint = Color(0xFF00FFA3))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Manage Rules", color = Color.White)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
         CyberGraph(primaryColor)
-        Spacer(modifier = Modifier.height(30.dp))
-        Text("LIVE TRAFFIC MONITOR", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("LIVE THREAT FEED", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(10.dp))
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(logs) { log ->
-                Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0D1117)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(">", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("${log.action}: ${log.domain} | Score: ${log.riskScore}", color = Color.LightGray, fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-                }
+                ThreatItem(log)
             }
         }
+    }
+}
+
+@Composable
+fun ThreatItem(log: ThreatLog) {
+    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0D1117)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(">", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Spacer(modifier = Modifier.width(10.dp))
+        Text("${log.action}: ${log.domain} | Score: ${log.riskScore}", color = Color.LightGray, fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
     }
 }
 
@@ -125,7 +152,7 @@ fun StatusIndicator(isEnabled: Boolean, color: Color) {
 
 @Composable
 fun CyberGraph(color: Color) {
-    Canvas(modifier = Modifier.fillMaxWidth().height(80.dp)) {
+    Canvas(modifier = Modifier.fillMaxWidth().height(60.dp)) {
         val path = Path()
         path.moveTo(0f, size.height); path.lineTo(size.width * 0.3f, size.height * 0.4f); path.lineTo(size.width * 0.5f, size.height * 0.2f); path.lineTo(size.width, size.height * 0.5f)
         drawPath(path = path, color = color, style = Stroke(width = 4f))
