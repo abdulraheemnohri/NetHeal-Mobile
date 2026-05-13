@@ -5,20 +5,27 @@ import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.*
 import com.netheal.ui.Dashboard
+import com.netheal.ui.SettingsScreen
 import com.netheal.vpn.NetHealVpnService
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Dashboard(onToggleFirewall = { enabled ->
-                if (enabled) {
-                    prepareVpn()
-                } else {
-                    stopVpn()
-                }
-            })
+            var currentScreen by remember { mutableStateOf("dashboard") }
+
+            if (currentScreen == "dashboard") {
+                Dashboard(
+                    onToggleFirewall = { enabled ->
+                        if (enabled) prepareVpn() else stopVpn()
+                    },
+                    onNavigateToSettings = { currentScreen = "settings" }
+                )
+            } else {
+                SettingsScreen(onBack = { currentScreen = "dashboard" })
+            }
         }
     }
 

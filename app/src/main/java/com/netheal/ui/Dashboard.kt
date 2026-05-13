@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,13 +33,13 @@ import com.netheal.data.ThreatLog
 import kotlinx.coroutines.delay
 
 @Composable
-fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
+fun Dashboard(onToggleFirewall: (Boolean) -> Unit, onNavigateToSettings: () -> Unit) {
     var isEnabled by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf<ThreatLog>()) }
     val primaryColor = if (isEnabled) Color(0xFF00FFA3) else Color(0xFFFF4B4B)
 
     LaunchedEffect(isEnabled) {
-        while (isEnabled) {
+        while (true) {
             logs = NetHealApp.database.threatLogDao().getAllLogs()
             delay(5000)
         }
@@ -49,7 +51,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
             .background(Color(0xFF05070A))
             .padding(20.dp)
     ) {
-        Header()
+        Header(onNavigateToSettings)
         Spacer(modifier = Modifier.height(30.dp))
 
         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
@@ -75,7 +77,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
         Text("LIVE TRAFFIC MONITOR", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(10.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(logs) { log ->
                 Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0D1117)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(">", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -88,11 +90,14 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
 }
 
 @Composable
-fun Header() {
+fun Header(onNavigateToSettings: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column {
             Text("NETHEAL", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 4.sp)
             Text("MOBILE SECURITY ENGINE", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+        IconButton(onClick = onNavigateToSettings) {
+            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
         }
     }
 }
