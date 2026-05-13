@@ -1,5 +1,5 @@
 use crate::firewall::Firewall;
-use crate::analyzer::{analyze_threat, ThreatType};
+use crate::analyzer::{analyze_threat};
 use crate::healer::Healer;
 
 pub struct Engine {
