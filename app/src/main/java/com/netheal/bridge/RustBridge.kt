@@ -6,6 +6,8 @@ object RustBridge {
     }
 
     external fun analyze(domain: String, requests: Int, burst: Float): Boolean
-    external fun isIpBlocked(ip: String): Boolean
+    external fun setSecurityLevel(level: Byte)
+    external fun setAppRule(appId: String, blocked: Boolean)
+    external fun getSystemHealth(): Int
     external fun heal()
 }

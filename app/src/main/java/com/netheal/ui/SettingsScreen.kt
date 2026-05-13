@@ -51,7 +51,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             Text("Engine", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 14.sp)
 
             SettingToggle("Enable Auto-Healing", "Restores rules if engine crashes", autoHeal) { autoHeal = it }
-            SettingToggle("Military Mode", "Maximum blocking, no bypass allowed", highSecurity) { highSecurity = it }
+            SettingToggle("Military Mode", "Maximum blocking, no bypass allowed", highSecurity) { highSecurity = it; RustBridge.setSecurityLevel(if (it) 1.toByte() else 0.toByte()) }
 
             Spacer(modifier = Modifier.height(24.dp))
             Text("System", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 14.sp)

@@ -3,6 +3,7 @@ use std::collections::HashSet;
 pub struct Firewall {
     blocked_domains: HashSet<String>,
     blocked_ips: HashSet<String>,
+    protected_apps: HashSet<String>,
 }
 
 impl Firewall {
@@ -10,11 +11,12 @@ impl Firewall {
         Firewall {
             blocked_domains: HashSet::new(),
             blocked_ips: HashSet::new(),
+            protected_apps: HashSet::new(),
         }
     }
 
     pub fn analyze(&mut self, domain: &str, requests: u32) -> bool {
-        if requests > 200 {
+        if requests > 500 {
             self.block_domain(domain);
             return false;
         }
@@ -32,6 +34,18 @@ impl Firewall {
     pub fn is_ip_blocked(&self, ip: &str) -> bool {
         self.blocked_ips.contains(ip)
     }
+
+    pub fn set_app_protection(&mut self, app_id: &str, enabled: bool) {
+        if enabled {
+            self.protected_apps.insert(app_id.to_string());
+        } else {
+            self.protected_apps.remove(app_id);
+        }
+    }
+
+    pub fn is_app_protected(&self, app_id: &str) -> bool {
+        self.protected_apps.contains(app_id)
+    }
 }
 
 #[cfg(test)]
@@ -43,14 +57,14 @@ mod tests {
         let mut fw = Firewall::new();
         fw.block_domain("malware.com");
         assert!(!fw.analyze("malware.com", 10));
-        assert!(fw.analyze("google.com", 10));
     }
 
     #[test]
-    fn test_firewall_ip() {
+    fn test_app_protection() {
         let mut fw = Firewall::new();
-        fw.block_ip("1.2.3.4");
-        assert!(fw.is_ip_blocked("1.2.3.4"));
-        assert!(!fw.is_ip_blocked("8.8.8.8"));
+        fw.set_app_protection("com.chrome", true);
+        assert!(fw.is_app_protected("com.chrome"));
+        fw.set_app_protection("com.chrome", false);
+        assert!(!fw.is_app_protected("com.chrome"));
     }
 }

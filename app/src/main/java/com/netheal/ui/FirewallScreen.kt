@@ -16,11 +16,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.netheal.bridge.RustBridge
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FirewallScreen(onBack: () -> Unit) {
-    val apps = listOf("Chrome", "YouTube", "System Update", "SocialApp", "GameX")
+    val apps = listOf(
+        "com.android.chrome" to "Chrome",
+        "com.google.android.youtube" to "YouTube",
+        "com.netheal" to "NetHeal System",
+        "com.social.app" to "SocialApp",
+        "com.game.x" to "GameX"
+    )
 
     Scaffold(
         topBar = {
@@ -42,8 +49,8 @@ fun FirewallScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(apps) { app ->
-                    AppRuleItem(app)
+                items(apps) { (appId, appName) ->
+                    AppRuleItem(appId, appName)
                 }
             }
         }
@@ -51,7 +58,7 @@ fun FirewallScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun AppRuleItem(appName: String) {
+fun AppRuleItem(appId: String, appName: String) {
     var isBlocked by remember { mutableStateOf(false) }
 
     Row(
@@ -63,11 +70,17 @@ fun AppRuleItem(appName: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold)
+        Column {
+            Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(appId, color = Color.Gray, fontSize = 10.sp)
+        }
 
         Switch(
             checked = !isBlocked,
-            onCheckedChange = { isBlocked = !it },
+            onCheckedChange = {
+                isBlocked = !it
+                RustBridge.setAppRule(appId, isBlocked)
+            },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color(0xFF00FFA3),
                 uncheckedThumbColor = Color.Red
