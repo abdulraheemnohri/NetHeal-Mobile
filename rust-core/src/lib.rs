@@ -23,10 +23,21 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_analyze(
     let domain_str: String = env.get_string(&domain).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
 
-    // Assume unknown=false for now, passing burst ratio
     let allowed = engine.process_request(&domain_str, requests as u32, false, burst as f32);
 
     if allowed { 1 } else { 0 }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_isIpBlocked(
+    mut env: JNIEnv,
+    _class: JClass,
+    ip: JString,
+) -> jboolean {
+    let ip_str: String = env.get_string(&ip).expect("Couldn't get java string!").into();
+    let engine = ENGINE.lock().unwrap();
+
+    if engine.is_ip_blocked(&ip_str) { 1 } else { 0 }
 }
 
 #[no_mangle]

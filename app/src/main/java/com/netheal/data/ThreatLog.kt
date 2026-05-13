@@ -18,6 +18,9 @@ interface ThreatLogDao {
 
     @Insert
     suspend fun insertLog(log: ThreatLog)
+
+    @Query("DELETE FROM threat_logs")
+    suspend fun deleteAllLogs()
 }
 
 @Database(entities = [ThreatLog::class], version = 1)

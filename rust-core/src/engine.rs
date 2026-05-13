@@ -17,11 +17,15 @@ impl Engine {
         let score = risk_score(rate, unknown, burst);
 
         if score > 70 {
-            self.firewall.block(domain);
+            self.firewall.block_domain(domain);
             return false;
         }
 
-        true
+        self.firewall.analyze(domain, rate)
+    }
+
+    pub fn is_ip_blocked(&self, ip: &str) -> bool {
+        self.firewall.is_ip_blocked(ip)
     }
 
     pub fn heal(&self) {

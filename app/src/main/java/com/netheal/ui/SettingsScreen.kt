@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
@@ -16,13 +17,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     var autoHeal by remember { mutableStateOf(true) }
     var highSecurity by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -55,7 +59,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             SettingAction("Repair System", "Force run healing logic", Icons.Default.Build) {
                 RustBridge.heal()
             }
-            SettingAction("Reset Database", "Clear all threat logs", Icons.Default.Restore) {}
+            SettingAction("Reset Database", "Clear all threat logs", Icons.Default.Restore) {
+                scope.launch {
+                    NetHealApp.database.threatLogDao().deleteAllLogs()
+                }
+            }
             SettingAction("Engine Version", "V1.0.2-rust-core", Icons.Default.Info) {}
 
             Divider(modifier = Modifier.padding(vertical = 20.dp), color = Color.Gray.copy(alpha = 0.2f))
