@@ -54,44 +54,48 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setAppRule(
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_addWhitelist(
     mut env: JNIEnv,
     _class: JClass,
-    ip: JString,
+    val: JString,
+    is_domain: jboolean,
 ) {
-    let ip: String = env.get_string(&ip).expect("Couldn't get java string!").into();
+    let val: String = env.get_string(&val).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
-    engine.add_whitelist(&ip);
+    engine.add_whitelist(&val, is_domain != 0);
 }
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeWhitelist(
     mut env: JNIEnv,
     _class: JClass,
-    ip: JString,
+    val: JString,
+    is_domain: jboolean,
 ) {
-    let ip: String = env.get_string(&ip).expect("Couldn't get java string!").into();
+    let val: String = env.get_string(&val).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
-    engine.remove_whitelist(&ip);
+    engine.remove_whitelist(&val, is_domain != 0);
 }
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_addBlacklist(
     mut env: JNIEnv,
     _class: JClass,
-    ip: JString,
+    ip_or_domain: JString,
+    is_domain: jboolean,
 ) {
-    let ip: String = env.get_string(&ip).expect("Couldn't get java string!").into();
+    let val: String = env.get_string(&ip_or_domain).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
-    engine.add_blacklist(&ip);
+    engine.add_blacklist(&val, is_domain != 0);
 }
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeBlacklist(
     mut env: JNIEnv,
     _class: JClass,
-    ip: JString,
+    ip_or_domain: JString,
+    is_domain: jboolean,
 ) {
-    let ip: String = env.get_string(&ip).expect("Couldn't get java string!").into();
+    let val: String = env.get_string(&ip_or_domain).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
-    engine.remove_blacklist(&ip);
+    engine.remove_blacklist(&val, is_domain != 0);
 }
 
 #[no_mangle]

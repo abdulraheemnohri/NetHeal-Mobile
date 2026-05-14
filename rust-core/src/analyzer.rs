@@ -1,48 +1,33 @@
-pub enum ThreatType {
-    Normal,
-    Bot,
-    Malware,
-    DDoS,
-    Tracker,
-    Suspicious,
-}
+use std::collections::HashMap;
+
+pub enum ThreatType { Normal, Bot, DDoS, DGA }
 
 pub struct ThreatReport {
     pub risk_score: u8,
     pub threat_type: ThreatType,
 }
 
-pub fn analyze_threat(request_rate: u32, burst_ratio: f32, is_unknown_domain: bool) -> ThreatReport {
+pub fn calculate_entropy(s: &str) -> f32 {
+    let mut frequencies = HashMap::new();
+    for c in s.chars() { *frequencies.entry(c).or_insert(0) += 1; }
+    let len = s.len() as f32;
+    if len == 0.0 { return 0.0; }
+    frequencies.values().map(|&count| {
+        let p = count as f32 / len;
+        -p * p.log2()
+    }).sum()
+}
+
+pub fn analyze_threat(request_rate: u32, _burst_ratio: f32, domain: Option<&str>) -> ThreatReport {
     let mut score: u8 = 0;
-
-    if request_rate > 500 {
-        score += 80;
-    } else if request_rate > 100 {
-        score += 40;
+    let mut t_type = ThreatType::Normal;
+    if request_rate > 500 { score += 80; t_type = ThreatType::DDoS; }
+    if let Some(d) = domain {
+        let entropy = calculate_entropy(d);
+        if entropy > 4.1 && d.len() > 10 {
+            score = 85;
+            t_type = ThreatType::DGA;
+        }
     }
-
-    if burst_ratio > 3.0 {
-        score += 30;
-    }
-
-    if is_unknown_domain {
-        score += 20;
-    }
-
-    let threat_type = if score >= 90 {
-        ThreatType::DDoS
-    } else if score >= 70 {
-        ThreatType::Malware
-    } else if score >= 50 {
-        ThreatType::Bot
-    } else if score >= 30 {
-        ThreatType::Suspicious
-    } else {
-        ThreatType::Normal
-    };
-
-    ThreatReport {
-        risk_score: score.min(100),
-        threat_type,
-    }
+    ThreatReport { risk_score: score.min(100), threat_type: t_type }
 }

@@ -23,15 +23,9 @@ class NetHealApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        database = Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java, "netheal-db"
-        ).fallbackToDestructiveMigration().build()
-
+        database = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "netheal-db").fallbackToDestructiveMigration().build()
         createNotificationChannel()
-
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 restoreEngineState()
@@ -51,31 +45,26 @@ class NetHealApp : Application() {
     }
 
     private suspend fun restoreEngineState() {
-        database.netHealDao().getAllRules().forEach { rule ->
-            RustBridge.setAppRule(rule.appId, rule.state)
-        }
-        database.netHealDao().getWhitelist().forEach { entry ->
-            RustBridge.addWhitelist(entry.domain)
-        }
-        database.netHealDao().getBlacklist().forEach { entry ->
-            RustBridge.addBlacklist(entry.target)
-        }
+        database.netHealDao().getAllRules().forEach { rule -> RustBridge.setAppRule(rule.appId, rule.state) }
+        database.netHealDao().getWhitelist().forEach { entry -> RustBridge.addWhitelist(entry.domain, entry.domain.contains(Regex("[a-zA-Z]"))) }
+        database.netHealDao().getBlacklist().forEach { entry -> RustBridge.addBlacklist(entry.target, entry.target.contains(Regex("[a-zA-Z]"))) }
         database.netHealDao().getAllCustomRules().forEach { rule ->
-            if (rule.isBlocked) RustBridge.addBlacklist(rule.pattern)
-            else RustBridge.addWhitelist(rule.pattern)
+            if (rule.isBlocked) RustBridge.addBlacklist(rule.pattern, rule.isDomain)
+            else RustBridge.addWhitelist(rule.pattern, rule.isDomain)
         }
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
         val isMilitary = prefs.getBoolean("military_mode", false)
-        RustBridge.setSecurityLevel(if (isMilitary) 2 else 0)
+        val isLockdown = prefs.getBoolean("lockdown_mode", false)
+        var level = 0
+        if (isLockdown) level = 3 else if (isMilitary) level = 2
+        RustBridge.setSecurityLevel(level)
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Threat Alerts"
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance)
-            val notificationManager: NotificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            val channel = NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_DEFAULT)
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
     }
 }
