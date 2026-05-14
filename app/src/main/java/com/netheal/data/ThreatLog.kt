@@ -17,6 +17,11 @@ data class FirewallRule(
     val state: Int // 0: Allowed, 1: WiFi-Only, 2: Blocked
 )
 
+@Entity(tableName = "bypass_apps")
+data class BypassApp(
+    @PrimaryKey val appId: String
+)
+
 @Entity(tableName = "whitelist")
 data class WhitelistEntry(
     @PrimaryKey val domain: String
@@ -61,6 +66,13 @@ interface NetHealDao {
     @Query("SELECT state FROM firewall_rules WHERE appId = :appId")
     suspend fun getAppState(appId: String): Int?
 
+    @Query("SELECT * FROM bypass_apps")
+    suspend fun getBypassApps(): List<BypassApp>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addBypassApp(app: BypassApp)
+    @Delete
+    suspend fun removeBypassApp(app: BypassApp)
+
     @Query("SELECT * FROM whitelist")
     suspend fun getWhitelist(): List<WhitelistEntry>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -90,7 +102,7 @@ interface NetHealDao {
     suspend fun updateStats(stats: UsageStats)
 }
 
-@Database(entities = [ThreatLog::class, FirewallRule::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, UsageStats::class], version = 8)
+@Database(entities = [ThreatLog::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, UsageStats::class], version = 9)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }

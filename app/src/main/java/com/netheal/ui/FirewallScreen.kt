@@ -39,9 +39,12 @@ fun FirewallScreen() {
     var customRules by remember { mutableStateOf(listOf<CustomRule>()) }
     var whitelist by remember { mutableStateOf(listOf<WhitelistEntry>()) }
     var blacklist by remember { mutableStateOf(listOf<BlacklistEntry>()) }
+    var bypassApps by remember { mutableStateOf(setOf<String>()) }
+
     var searchQuery by remember { mutableStateOf("") }
     var showSystemApps by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
+
     val scope = rememberCoroutineScope()
 
     fun loadData() {
@@ -53,6 +56,7 @@ fun FirewallScreen() {
             customRules = NetHealApp.database.netHealDao().getAllCustomRules()
             whitelist = NetHealApp.database.netHealDao().getWhitelist()
             blacklist = NetHealApp.database.netHealDao().getBlacklist()
+            bypassApps = NetHealApp.database.netHealDao().getBypassApps().map { it.appId }.toSet()
         }
     }
 
@@ -66,46 +70,26 @@ fun FirewallScreen() {
             }
             IconButton(onClick = { loadData() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.Gray) }
         }
+
         Spacer(modifier = Modifier.height(20.dp))
+
         ScrollableTabRow(
             selectedTabIndex = activeTab, containerColor = Color.Transparent, contentColor = Color(0xFF00FFA3), edgePadding = 0.dp, divider = {},
             indicator = { tabPositions -> TabRowDefaults.Indicator(modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab]), color = Color(0xFF00FFA3)) }
         ) {
-            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("ISOLATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("APP SHIELD", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Tab(selected = activeTab == 1, onClick = { activeTab = 1 }) { Text("POLICIES", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) { Text("LISTS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) { Text("INTELLIGENT AUDIT", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) { Text("GLOBAL LISTS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) { Text("BYPASS LIST", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         }
+
         Spacer(modifier = Modifier.height(20.dp))
+
         when (activeTab) {
             0 -> AppShieldSection(searchQuery, { searchQuery = it }, allApps, showSystemApps, { showSystemApps = it })
             1 -> CustomRulesSection(customRules, { loadData() })
             2 -> GlobalListsSection(whitelist, blacklist, { loadData() })
-            3 -> IntelligentAuditSection(allApps)
-        }
-    }
-}
-
-@Composable
-fun IntelligentAuditSection(apps: List<Pair<String, String>>) {
-    val auditList = apps.map { (pkg, label) ->
-        var risk = 20
-        if (pkg.contains("ads") || pkg.contains("telemetry") || pkg.contains("tracker") || pkg.contains("analytics")) risk += 65
-        if (!pkg.contains("android") && !pkg.contains("google")) risk += 10
-        pkg to risk
-    }.sortedByDescending { it.second }
-
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(auditList.take(25)) { (pkg, score) ->
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (score > 70) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(pkg, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text(if (score > 70) "ABNORMAL DATA SYNDICATE" else if (score > 30) "VERIFIED UTILITY" else "CORE SYSTEM", color = if (score > 70) Color.Red else Color.Gray, fontSize = 9.sp)
-                    }
-                    Text("$score", color = if (score > 70) Color.Red else Color(0xFF00FFA3), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                }
-            }
+            3 -> BypassSection(allApps, bypassApps, { loadData() })
         }
     }
 }
@@ -113,17 +97,42 @@ fun IntelligentAuditSection(apps: List<Pair<String, String>>) {
 @Composable
 fun AppShieldSection(query: String, onQueryChange: (String) -> Unit, apps: List<Pair<String, String>>, showSystem: Boolean, onToggleSystem: (Boolean) -> Unit) {
     val filteredApps = if (query.isEmpty()) apps else apps.filter { it.second.contains(query, ignoreCase = true) || it.first.contains(query, ignoreCase = true) }
-    Column {
-        OutlinedTextField(
-            value = query, onValueChange = onQueryChange, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search apps...", color = Color.Gray, fontSize = 14.sp) },
-            trailingIcon = { IconButton(onClick = { onToggleSystem(!showSystem) }) { Icon(Icons.Default.Tune, contentDescription = null, tint = if (showSystem) Color(0xFF00FFA3) else Color.Gray) } },
-            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color(0xFF00FFA3), unfocusedBorderColor = Color(0xFF161B22), focusedContainerColor = Color(0xFF161B22), unfocusedContainerColor = Color(0xFF161B22)),
-            shape = RoundedCornerShape(12.dp), singleLine = true
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(filteredApps, key = { it.first }) { (packageName, label) -> AppRuleItem(packageName, label) }
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            OutlinedTextField(
+                value = query, onValueChange = onQueryChange, modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search apps...", color = Color.Gray, fontSize = 14.sp) },
+                trailingIcon = { IconButton(onClick = { onToggleSystem(!showSystem) }) { Icon(Icons.Default.Tune, contentDescription = null, tint = if (showSystem) Color(0xFF00FFA3) else Color.Gray) } },
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color(0xFF00FFA3), unfocusedBorderColor = Color(0xFF161B22), focusedContainerColor = Color(0xFF161B22), unfocusedContainerColor = Color(0xFF161B22)),
+                shape = RoundedCornerShape(12.dp), singleLine = true
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        items(filteredApps, key = { it.first }) { (packageName, label) -> AppRuleItem(packageName, label) }
+    }
+}
+
+@Composable
+fun BypassSection(allApps: List<Pair<String, String>>, bypass: Set<String>, onUpdate: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(allApps) { (pkg, label) ->
+            val isBypassed = bypass.contains(pkg)
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp)) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(pkg, color = Color.Gray, fontSize = 9.sp, maxLines = 1)
+                    }
+                    Switch(checked = isBypassed, onCheckedChange = {
+                        scope.launch(Dispatchers.IO) {
+                            if (it) NetHealApp.database.netHealDao().addBypassApp(BypassApp(pkg))
+                            else NetHealApp.database.netHealDao().removeBypassApp(BypassApp(pkg))
+                            withContext(Dispatchers.Main) { onUpdate() }
+                        }
+                    }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FFA3)))
+                }
+            }
         }
     }
 }

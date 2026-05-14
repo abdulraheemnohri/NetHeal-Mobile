@@ -5,8 +5,9 @@ object RustBridge {
         System.loadLibrary("netheal")
     }
 
-    external fun analyze(domain: String, requests: Int): Boolean
     external fun handlePacket(packet: ByteArray): Boolean
+    external fun handlePacketWithApp(packet: ByteArray, appId: String): Boolean
+    external fun recordIncoming(appId: String, bytes: Long)
     external fun setSecurityLevel(level: Int)
     external fun setAppRule(appId: String, state: Int)
     external fun getBlockedCount(): Long

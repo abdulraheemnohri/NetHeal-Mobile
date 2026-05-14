@@ -34,10 +34,12 @@ class NetHealVpnService : VpnService() {
             return START_NOT_STICKY
         }
         acquireWakeLock()
+
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
         val dns = prefs.getString("upstream_dns", "Cloudflare") ?: "Cloudflare"
         val dnsIp = if (dns == "Cloudflare") "1.1.1.1" else if (dns == "AdGuard") "94.140.14.14" else "8.8.8.8"
         RustBridge.setUpstreamDns(dnsIp)
+
         setupVpn()
         return START_STICKY
     }
@@ -50,7 +52,12 @@ class NetHealVpnService : VpnService() {
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
             builder.addDnsServer("10.0.0.2")
-            builder.setBlocking(false)
+
+            // Apply bypass list
+            serviceScope.launch {
+                val bypass = NetHealApp.database.netHealDao().getBypassApps()
+                bypass.forEach { try { builder.addDisallowedApplication(it.appId) } catch (e: Exception) {} }
+            }
 
             vpnInterface = builder.establish()
             if (vpnInterface != null) {
@@ -65,14 +72,17 @@ class NetHealVpnService : VpnService() {
         val inputStream = FileInputStream(descriptor.fileDescriptor)
         val outputStream = FileOutputStream(descriptor.fileDescriptor)
         val packet = ByteBuffer.allocate(32768)
+
         try {
             while (!Thread.interrupted()) {
                 val length = inputStream.read(packet.array())
                 if (length > 0) {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
-                    // Real traffic attribution: map outgoing packet to package (simulated)
+
+                    // Note: Real UID attribution requires socket metadata extraction
                     val allowed = RustBridge.handlePacket(data)
+
                     if (allowed) { outputStream.write(data, 0, length) }
                     else {
                         serviceScope.launch { NetHealApp.database.netHealDao().insertLog(ThreatLog(domain = "ABSOLUTE_FILTER_BLOCK", riskScore = 100, action = "DROPPED")) }
@@ -80,7 +90,7 @@ class NetHealVpnService : VpnService() {
                 }
                 packet.clear()
             }
-        } catch (e: Exception) { Log.e("NetHealVpn", "Loop error", e); RustBridge.heal() }
+        } catch (e: Exception) { Log.e("NetHealVpn", "VPN Loop error", e); RustBridge.heal() }
         finally { cleanup() }
     }
 
@@ -109,12 +119,12 @@ class NetHealVpnService : VpnService() {
     private fun createNotification(content: String): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
         return NotificationCompat.Builder(this, NetHealApp.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle("NetHeal Absolute")
             .setContentText(content)
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()

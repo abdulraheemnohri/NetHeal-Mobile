@@ -1,12 +1,19 @@
 use std::collections::{HashSet, HashMap};
 use crate::analyzer::analyze_threat;
 
+pub struct AppTraffic {
+    pub bytes_sent: u64,
+    pub bytes_recv: u64,
+    pub packets: u64,
+}
+
 pub struct Firewall {
     blocked_ips: HashSet<String>,
     blocked_domains: HashSet<String>,
     whitelisted_ips: HashSet<String>,
     whitelisted_domains: HashSet<String>,
     protected_apps: HashMap<String, u8>,
+    app_traffic: HashMap<String, AppTraffic>,
     total_scanned: u64,
     total_blocked: u64,
     military_mode: bool,
@@ -24,6 +31,7 @@ impl Firewall {
             whitelisted_ips: HashSet::new(),
             whitelisted_domains: HashSet::new(),
             protected_apps: HashMap::new(),
+            app_traffic: HashMap::new(),
             total_scanned: 0,
             total_blocked: 0,
             military_mode: false,
@@ -47,9 +55,16 @@ impl Firewall {
         for d in bl_domains { self.blocked_domains.insert(d.to_string()); }
     }
 
-    pub fn force_block_stat(&mut self) { self.total_scanned += 1; self.total_blocked += 1; }
-    pub fn set_lockdown(&mut self, enabled: bool) { self.lockdown_mode = enabled; }
-    pub fn set_kill_switch(&mut self, enabled: bool) { self.kill_switch = enabled; }
+    pub fn force_block_stat(&mut self) {
+        self.total_scanned += 1;
+        self.total_blocked += 1;
+    }
+
+    pub fn record_traffic(&mut self, app_id: &str, bytes: u64, is_sent: bool) {
+        let entry = self.app_traffic.entry(app_id.to_string()).or_insert(AppTraffic { bytes_sent: 0, bytes_recv: 0, packets: 0 });
+        entry.packets += 1;
+        if is_sent { entry.bytes_sent += bytes; } else { entry.bytes_recv += bytes; }
+    }
 
     pub fn analyze_packet(&mut self, dst_ip: &str, protocol: u8, app_id: Option<&str>, domain: Option<&str>) -> bool {
         self.total_scanned += 1;
@@ -75,6 +90,8 @@ impl Firewall {
         true
     }
 
+    pub fn set_lockdown(&mut self, enabled: bool) { self.lockdown_mode = enabled; }
+    pub fn set_kill_switch(&mut self, enabled: bool) { self.kill_switch = enabled; }
     pub fn block_domain(&mut self, d: &str) { self.blocked_domains.insert(d.to_string()); }
     pub fn unblock_domain(&mut self, d: &str) { self.blocked_domains.remove(d); }
     pub fn block_ip(&mut self, ip: &str) { self.blocked_ips.insert(ip.to_string()); }
@@ -86,12 +103,17 @@ impl Firewall {
     pub fn set_app_state(&mut self, app_id: &str, state: u8) { self.protected_apps.insert(app_id.to_string(), state); }
     pub fn set_military_mode(&mut self, enabled: bool) { self.military_mode = enabled; }
     pub fn get_stats(&self) -> (u64, u64) { (self.total_scanned, self.total_blocked) }
+    pub fn get_app_usage_json(&self) -> String {
+        let mut list = Vec::new();
+        for (id, traffic) in &self.app_traffic { list.push(format!("\"{}\":{{\"s\":{},\"r\":{},\"p\":{}}}", id, traffic.bytes_sent, traffic.bytes_recv, traffic.packets)); }
+        format!("{{{}}}", list.join(","))
+    }
     pub fn get_top_blocked(&self) -> Vec<(String, u64)> {
         let mut top: Vec<_> = self.blocked_targets.iter().map(|(k, v)| (k.clone(), *v)).collect();
         top.sort_by(|a, b| b.1.cmp(&a.1));
-        top.into_iter().take(5).collect()
+        top.into_iter().take(10).collect()
     }
     pub fn get_protocol_counts(&self) -> HashMap<u8, u64> { self.protocol_stats.clone() }
     pub fn reset_rules(&mut self) { self.blocked_ips.clear(); self.blocked_domains.clear(); self.whitelisted_ips.clear(); self.whitelisted_domains.clear(); self.protected_apps.clear(); self.load_defaults(); }
-    pub fn reset_stats(&mut self) { self.total_scanned = 0; self.total_blocked = 0; self.protocol_stats.clear(); self.blocked_targets.clear(); }
+    pub fn reset_stats(&mut self) { self.total_scanned = 0; self.total_blocked = 0; self.protocol_stats.clear(); self.blocked_targets.clear(); self.app_traffic.clear(); }
 }
