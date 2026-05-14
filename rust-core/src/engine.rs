@@ -1,5 +1,5 @@
 use crate::firewall::Firewall;
-use crate::analyzer::{analyze_threat};
+use crate::analyzer::analyze_threat;
 use crate::healer::Healer;
 
 pub struct Engine {
@@ -15,16 +15,17 @@ impl Engine {
         }
     }
 
-    pub fn process_request(&mut self, domain: &str, rate: u32, unknown: bool, burst: f32) -> (bool, String) {
-        let (score, threat_type) = analyze_threat(rate, unknown, burst);
+    pub fn process_request(&mut self, target: &str, is_ip: bool, rate: u32, burst: f32, app_id: Option<&str>) -> (bool, u8) {
+        let (score, _) = analyze_threat(rate, false, burst);
         let threshold = if self.security_level == 1 { 45 } else { 75 };
 
         if score > threshold {
-            self.firewall.block_domain(domain);
-            return (false, format!("{:?}", threat_type));
+            if is_ip { self.firewall.block_ip(target); } else { self.firewall.block_domain(target); }
+            return (false, score);
         }
 
-        (self.firewall.analyze(domain, rate), "Normal".to_string())
+        let allowed = self.firewall.analyze_connection(target, is_ip, rate, app_id);
+        (allowed, score)
     }
 
     pub fn set_security_level(&mut self, level: u8) {
@@ -35,12 +36,29 @@ impl Engine {
         self.firewall.set_app_protection(app_id, blocked);
     }
 
+    pub fn add_whitelist(&mut self, domain: &str) {
+        self.firewall.add_to_whitelist(domain);
+    }
+
+    pub fn add_blacklist(&mut self, target: &str) {
+        let is_ip = target.chars().next().map_or(false, |c| c.is_ascii_digit());
+        if is_ip {
+            self.firewall.block_ip(target);
+        } else {
+            self.firewall.block_domain(target);
+        }
+    }
+
+    pub fn get_blocked_count(&self) -> u64 {
+        self.firewall.get_stats().1
+    }
+
     pub fn check_health(&self) -> u8 {
-        // Mock health check
         100
     }
 
-    pub fn heal(&self) {
+    pub fn heal(&mut self) {
         Healer::repair_rules();
+        self.firewall.reset_rules();
     }
 }

@@ -1,57 +1,59 @@
 # 🛡️ NetHeal Mobile
 
-**NetHeal Mobile** is a self-healing Android firewall system powered by a local VPN engine and a high-performance Rust security core. It provides device-level autonomous security by intercepting, analyzing, and blocking malicious network traffic in real time.
+**NetHeal Mobile** is an advanced, autonomous network security system for Android. Powered by a high-performance Rust core and local VPN technology, it provides real-time protection, self-healing capabilities, and deep threat analytics—all without ever leaving your device.
 
 ---
 
-## 🧠 Architecture
+## 🧠 Core Architecture
 
-NetHeal Mobile follows an "All-in-Android" architecture to ensure maximum privacy and speed without relying on external servers.
+NetHeal Mobile operates as a device-level firewall, ensuring 100% privacy and zero latency by performing all security logic locally.
 
-1.  **Android VPNService (Intercept):** Captures all outgoing and incoming device traffic.
-2.  **Rust Security Engine (Analyze):** A memory-safe core (via NDK) that performs deep packet inspection metadata analysis, risk scoring, and rule evaluation.
-3.  **Self-Healing Logic (Repair):** Automatically restores corrupted firewall rules or restarts the VPN tunnel if system integrity is compromised.
-4.  **Jetpack Compose Dashboard (Visualize):** A modern, dark-themed UI providing live threat feeds and security status.
+1.  **Local VPN Interceptor:** Routes all device traffic through a virtual interface to capture packet metadata.
+2.  **Rust Security Core (NDK):** A multi-module engine written in memory-safe Rust that processes analysis, rule evaluation, and system healing.
+3.  **Autonomous Threat Scoring:** Evaluates connections based on request rates, burst ratios, and domain reputation to assign real-time risk scores (0-100).
+4.  **Persistent Intelligence (Room DB):** Stores firewall rules, whitelists, manual blacklists, and detailed threat logs locally.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Advanced Features
 
--   **Autonomous Firewall:** Automatically blocks high-risk domains and suspicious IP addresses.
--   **Rust-Powered Performance:** Heavy security logic runs in a memory-safe Rust environment for near-zero latency.
--   **Self-Healing Engine:** Proactively repairs firewall configurations and ensures the protection layer remains active.
--   **Live Security Dashboard:** Real-time visualization of blocked connections and threat risk scores.
--   **Zero Trust by Default:** Every connection is evaluated based on request rate, domain reputation, and behavior.
+-   **Intelligent Firewall:** Automatic blocking of DDoS-like behavior, malicious trackers, and bot-driven requests.
+-   **Per-App Control:** Discover and restrict internet access for any installed user application.
+-   **Security Modes:** Toggle "Military Mode" for ultra-strict filtering and zero-tolerance blocking.
+-   **Self-Healing Engine:** Proactively checks system integrity and restores firewall rules if any corruption or bypass is detected.
+-   **Live Security Dashboard:** Professional cyber-themed UI featuring real-time health monitoring and threat feeds.
+-   **Notification System:** Instant alerts for critical threat interceptions.
 
 ---
 
 ## 🛠️ Project Structure
 
--   `app/`: Android application (Kotlin + Jetpack Compose).
-    -   `vpn/`: VPNService implementation for traffic interception.
-    -   `bridge/`: JNI Bridge to communicate with Rust core.
-    -   `ui/`: Security dashboard and rule management screens.
--   `rust-core/`: High-performance security engine.
-    -   `firewall.rs`: Logic for blocking/allowing domains.
-    -   `analyzer.rs`: Threat scoring and behavior analysis.
-    -   `healer.rs`: System integrity restoration logic.
+-   `app/`: Android Application (Kotlin + Compose)
+    -   `vpn/`: VPNService & Traffic Monitoring logic.
+    -   `bridge/`: JNI layer for high-speed Rust communication.
+    -   `data/`: Room DB persistence layer (Logs, Rules, Whitelist).
+    -   `ui/`: Premium Jetpack Compose screens.
+-   `rust-core/`: The Security Powerhouse
+    -   `firewall.rs`: Static and dynamic rule management.
+    -   `analyzer.rs`: Threat classification (DDoS, Bot, Malware).
+    -   `healer.rs`: System restoration and integrity logic.
 
 ---
 
-## 📦 Build Instructions
+## 📦 Build & CI/CD
 
-1.  **Rust Core:** Navigate to `rust-core/` and build using the Android NDK (requires `cargo-ndk`).
-2.  **Android App:** Open the root directory in Android Studio. Ensure NDK is installed.
-3.  **JNI Libs:** The project expects `libnetheal.so` to be present in `app/src/main/jniLibs/`.
-
----
-
-## 🔐 Security & Privacy
-
--   **On-Device Processing:** No traffic metadata ever leaves your device.
--   **No Root Required:** Uses the standard Android VPN API.
--   **Memory Safety:** Leveraging Rust to prevent common vulnerabilities like buffer overflows in network processing.
+The project is fully integrated with **GitHub Actions**. Every push automatically:
+1.  Sets up the Rust NDK environment.
+2.  Compiles the Rust Security Core for multiple Android architectures.
+3.  Builds the Android application using Gradle 8.8 with KSP support.
+4.  Generates a ready-to-install **Debug APK**.
 
 ---
 
-*Note: This project is a specialized security tool and requires VPN permissions to function.*
+## 🔐 Security & Privacy First
+
+-   **Zero Trust:** Every connection is analyzed before being allowed.
+-   **Local Only:** No data is uploaded to any cloud service.
+-   **Standard APIs:** Works on any Android 8.0+ device without needing root access.
+
+*Designed for those who demand ultimate control over their mobile privacy.*

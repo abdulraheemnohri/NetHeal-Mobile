@@ -5,6 +5,7 @@ import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import com.netheal.ui.Dashboard
 import com.netheal.ui.SettingsScreen
@@ -12,6 +13,13 @@ import com.netheal.ui.FirewallScreen
 import com.netheal.vpn.NetHealVpnService
 
 class MainActivity : ComponentActivity() {
+
+    private val vpnRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            startVpnService()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -40,21 +48,15 @@ class MainActivity : ComponentActivity() {
     private fun prepareVpn() {
         val intent = VpnService.prepare(this)
         if (intent != null) {
-            @Suppress("DEPRECATION")
-            startActivityForResult(intent, 0)
+            vpnRequest.launch(intent)
         } else {
-            onActivityResult(0, RESULT_OK, null)
+            startVpnService()
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        @Suppress("DEPRECATION")
-        super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode == RESULT_OK) {
-            val intent = Intent(this, NetHealVpnService::class.java)
-            startService(intent)
-        }
+    private fun startVpnService() {
+        val intent = Intent(this, NetHealVpnService::class.java)
+        startService(intent)
     }
 
     private fun stopVpn() {
