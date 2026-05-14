@@ -40,12 +40,25 @@ impl Engine {
         self.firewall.add_to_whitelist(domain);
     }
 
+    pub fn remove_whitelist(&mut self, domain: &str) {
+        self.firewall.remove_from_whitelist(domain);
+    }
+
     pub fn add_blacklist(&mut self, target: &str) {
         let is_ip = target.chars().next().map_or(false, |c| c.is_ascii_digit());
         if is_ip {
             self.firewall.block_ip(target);
         } else {
             self.firewall.block_domain(target);
+        }
+    }
+
+    pub fn remove_blacklist(&mut self, target: &str) {
+        let is_ip = target.chars().next().map_or(false, |c| c.is_ascii_digit());
+        if is_ip {
+            self.firewall.remove_ip_block(target);
+        } else {
+            self.firewall.remove_domain_block(target);
         }
     }
 

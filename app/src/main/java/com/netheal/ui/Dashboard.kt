@@ -4,7 +4,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -129,7 +128,7 @@ fun HealthIndicator(health: Int) {
         Text("ENGINE INTEGRITY", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = { health / 100f },
+            progress = health / 100f,
             modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
             color = if (health > 80) Color(0xFF00FFA3) else Color.Yellow,
             trackColor = Color(0xFF161B22)
@@ -204,7 +203,7 @@ fun StatusIndicator(isEnabled: Boolean, color: Color) {
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(8.dp).background(color, CircleShape).shadow(10.dp, color, CircleShape))
+        Box(modifier = Modifier.size(8.dp).background(color, CircleShape).shadow(elevation = 10.dp, shape = CircleShape, spotColor = color))
         Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(text = if (isEnabled) "PROTECTION ACTIVE" else "VULNERABLE", color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold)
