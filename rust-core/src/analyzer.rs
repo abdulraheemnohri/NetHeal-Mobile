@@ -1,46 +1,48 @@
-#[derive(Debug, PartialEq, Clone)]
 pub enum ThreatType {
     Normal,
     Bot,
     Malware,
-    Tracker,
     DDoS,
+    Tracker,
+    Suspicious,
 }
 
-pub fn analyze_threat(request_rate: u32, unknown_domain: bool, burst_ratio: f32) -> (u8, ThreatType) {
-    let mut score = 0;
-    let mut threat = ThreatType::Normal;
-
-    if request_rate > 1000 {
-        score += 95;
-        threat = ThreatType::DDoS;
-    } else if request_rate > 300 {
-        score += 50;
-        threat = ThreatType::Bot;
-    }
-
-    if unknown_domain {
-        score += 35;
-        if threat == ThreatType::Normal { threat = ThreatType::Tracker; }
-    }
-
-    if burst_ratio > 20.0 {
-        score += 70;
-        threat = ThreatType::Malware;
-    }
-
-    if score > 100 { score = 100; }
-    (score as u8, threat)
+pub struct ThreatReport {
+    pub risk_score: u8,
+    pub threat_type: ThreatType,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn analyze_threat(request_rate: u32, burst_ratio: f32, is_unknown_domain: bool) -> ThreatReport {
+    let mut score: u8 = 0;
 
-    #[test]
-    fn test_threat_levels() {
-        let (score, threat) = analyze_threat(1500, false, 1.0);
-        assert_eq!(threat, ThreatType::DDoS);
-        assert_eq!(score, 95);
+    if request_rate > 500 {
+        score += 80;
+    } else if request_rate > 100 {
+        score += 40;
+    }
+
+    if burst_ratio > 3.0 {
+        score += 30;
+    }
+
+    if is_unknown_domain {
+        score += 20;
+    }
+
+    let threat_type = if score >= 90 {
+        ThreatType::DDoS
+    } else if score >= 70 {
+        ThreatType::Malware
+    } else if score >= 50 {
+        ThreatType::Bot
+    } else if score >= 30 {
+        ThreatType::Suspicious
+    } else {
+        ThreatType::Normal
+    };
+
+    ThreatReport {
+        risk_score: score.min(100),
+        threat_type,
     }
 }

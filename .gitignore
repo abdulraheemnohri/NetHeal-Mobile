@@ -18,3 +18,7 @@ Cargo.lock
 
 # OS
 .DS_Store
+.cxx/
+build/
+target/
+*.apk

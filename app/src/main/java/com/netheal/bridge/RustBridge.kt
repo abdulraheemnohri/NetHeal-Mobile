@@ -5,15 +5,16 @@ object RustBridge {
         System.loadLibrary("netheal")
     }
 
-    external fun analyze(target: String, isIp: Boolean, requests: Int, burst: Float): Int
-    external fun setSecurityLevel(level: Byte)
+    external fun analyze(domain: String, requests: Int): Boolean
+    external fun handlePacket(packet: ByteArray): Boolean
+    external fun setSecurityLevel(level: Int)
     external fun setAppRule(appId: String, blocked: Boolean)
     external fun getBlockedCount(): Long
     external fun getScannedCount(): Long
-    external fun getSystemHealth(): Int
-    external fun addWhitelist(domain: String)
-    external fun removeWhitelist(domain: String)
-    external fun addBlacklist(target: String)
-    external fun removeBlacklist(target: String)
+    external fun getSecurityScore(): Int
+    external fun addWhitelist(ip: String)
+    external fun removeWhitelist(ip: String)
+    external fun addBlacklist(ip: String)
+    external fun removeBlacklist(ip: String)
     external fun heal()
 }

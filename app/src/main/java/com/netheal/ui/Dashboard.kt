@@ -54,7 +54,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
     LaunchedEffect(isEnabled) {
         while (true) {
             logs = NetHealApp.database.netHealDao().getAllLogs()
-            health = RustBridge.getSystemHealth()
+            health = RustBridge.getSecurityScore()
             blockedCount = RustBridge.getBlockedCount()
             activeRules = NetHealApp.database.netHealDao().getAllRules().count { it.isBlocked }
             todayStats = NetHealApp.database.netHealDao().getStatsForDay(LocalDate.now().toString())
@@ -136,7 +136,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
                     isScanning = true
                     delay(3000)
                     isScanning = false
-                    health = 100
+                    health = RustBridge.getSecurityScore()
                 }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),

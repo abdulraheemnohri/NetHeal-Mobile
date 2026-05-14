@@ -70,7 +70,7 @@ class NetHealApp : Application() {
         }
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
         val isMilitary = prefs.getBoolean("military_mode", false)
-        RustBridge.setSecurityLevel(if (isMilitary) 1.toByte() else 0.toByte())
+        RustBridge.setSecurityLevel(if (isMilitary) 2 else 0)
     }
 
     private fun createNotificationChannel() {

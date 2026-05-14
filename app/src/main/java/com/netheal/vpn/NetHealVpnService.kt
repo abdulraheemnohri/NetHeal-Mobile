@@ -7,7 +7,6 @@ import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import com.netheal.MainActivity
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
@@ -15,14 +14,15 @@ import com.netheal.data.ThreatLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.Random
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
 
 class NetHealVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var thread: Thread? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO)
-    private val random = Random()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("NetHealVpn", "Service starting...")
@@ -31,48 +31,58 @@ class NetHealVpnService : VpnService() {
         builder.setSession("NetHealVpn")
         builder.addAddress("10.0.0.2", 24)
         builder.addRoute("0.0.0.0", 0)
+        builder.setMtu(1500)
+
+        // Block IPv6 to force IPv4 (simplifies demo)
+        builder.addAddress("fd00::2", 128)
+        builder.addRoute("::", 0)
 
         vpnInterface = builder.establish()
 
         if (vpnInterface != null) {
             startForeground(1, createNotification("Firewall Protection Active"))
-            thread = Thread { monitorTraffic(vpnInterface!!) }
+            thread = Thread { runVpnLoop(vpnInterface!!) }
             thread?.start()
         }
 
         return START_STICKY
     }
 
-    private fun monitorTraffic(descriptor: ParcelFileDescriptor) {
+    private fun runVpnLoop(descriptor: ParcelFileDescriptor) {
+        val inputStream = FileInputStream(descriptor.fileDescriptor)
+        val outputStream = FileOutputStream(descriptor.fileDescriptor)
+        val packet = ByteBuffer.allocate(32768) // Larger buffer for safety
+
         try {
             while (!Thread.interrupted()) {
-                // Simulation of traffic analysis
-                val targets = listOf("api.tracker-network.com", "185.122.1.5", "telemetry.os.android", "ads.social-service.io", "legit-site.com")
-                val target = targets[random.nextInt(targets.size)]
-                val isIp = target.first().isDigit()
+                val length = inputStream.read(packet.array())
+                if (length > 0) {
+                    val data = ByteArray(length)
+                    System.arraycopy(packet.array(), 0, data, 0, length)
 
-                // In a real implementation, we would extract the app context here
-                val result = RustBridge.analyze(target, isIp, random.nextInt(400), random.nextFloat() * 10)
+                    val allowed = RustBridge.handlePacket(data)
 
-                if (result < 0) { // Blocked
-                    val score = -result
-                    Log.w("NetHealVpn", "🚫 Blocked connection to $target | Risk: $score")
-                    serviceScope.launch {
-                        NetHealApp.database.netHealDao().insertLog(
-                            ThreatLog(domain = target, riskScore = score, action = "BLOCKED")
-                        )
+                    if (allowed) {
+                        outputStream.write(data, 0, length)
+                    } else {
+                        // Log block event
+                        serviceScope.launch {
+                            NetHealApp.database.netHealDao().insertLog(
+                                ThreatLog(domain = "PACKET_DROPPED", riskScore = 100, action = "BLOCKED")
+                            )
+                        }
                     }
-                    if (score > 90) showThreatNotification(target)
                 }
-
-                Thread.sleep(10000)
+                packet.clear()
             }
         } catch (e: Exception) {
-            Log.e("NetHealVpn", "Traffic monitoring interrupted", e)
+            Log.e("NetHealVpn", "VPN Loop error", e)
             RustBridge.heal()
         } finally {
             try {
                 descriptor.close()
+                inputStream.close()
+                outputStream.close()
             } catch (e: Exception) {
                 // Ignore
             }
@@ -91,21 +101,6 @@ class NetHealVpnService : VpnService() {
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
-    }
-
-    private fun showThreatNotification(domain: String) {
-        val notification = NotificationCompat.Builder(this, NetHealApp.CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle("Critical Threat Blocked")
-            .setContentText("Automatic block: $domain")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-
-        try {
-            NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), notification)
-        } catch (e: SecurityException) {
-            Log.e("NetHealVpn", "Notification permission missing")
-        }
     }
 
     override fun onDestroy() {
