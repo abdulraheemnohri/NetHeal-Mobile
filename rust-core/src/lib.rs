@@ -127,6 +127,17 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setSecurityLevel(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setUpstreamDns(
+    mut env: JNIEnv,
+    _class: JClass,
+    dns: JString,
+) {
+    let dns: String = env.get_string(&dns).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_upstream_dns(&dns);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_getBlockedCount(
     _env: JNIEnv,
     _class: JClass,
