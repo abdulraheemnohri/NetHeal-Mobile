@@ -15,18 +15,6 @@ use crate::engine::Engine;
 static ENGINE: Lazy<Mutex<Engine>> = Lazy::new(|| Mutex::new(Engine::new()));
 
 #[no_mangle]
-pub extern "system" fn Java_com_netheal_bridge_RustBridge_analyze(
-    mut env: JNIEnv,
-    _class: JClass,
-    domain: JString,
-    _requests: jint,
-) -> jboolean {
-    let domain: String = env.get_string(&domain).expect("Couldn't get java string!").into();
-    let mut engine = ENGINE.lock().unwrap();
-    if engine.handle_packet(domain.as_bytes(), None) { 1 } else { 0 }
-}
-
-#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
     env: JNIEnv,
     _class: JClass,
@@ -36,6 +24,32 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
     let data = env.convert_byte_array(packet_array).unwrap_or_default();
     let mut engine = ENGINE.lock().unwrap();
     if engine.handle_packet(&data, None) { 1 } else { 0 }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacketWithApp(
+    mut env: JNIEnv,
+    _class: JClass,
+    packet: jbyteArray,
+    app_id: JString,
+) -> jboolean {
+    let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
+    let packet_array = unsafe { JByteArray::from_raw(packet) };
+    let data = env.convert_byte_array(packet_array).unwrap_or_default();
+    let mut engine = ENGINE.lock().unwrap();
+    if engine.handle_packet(&data, Some(&app_id_str)) { 1 } else { 0 }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_recordIncoming(
+    mut env: JNIEnv,
+    _class: JClass,
+    app_id: JString,
+    bytes: jlong,
+) {
+    let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.record_incoming(&app_id_str, bytes as u64);
 }
 
 #[no_mangle]

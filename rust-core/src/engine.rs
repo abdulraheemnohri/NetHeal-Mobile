@@ -23,10 +23,19 @@ impl Engine {
             let mut domain = None;
             if info.protocol == 17 { domain = parse_dns_query(&info.payload); }
             else if info.protocol == 6 { domain = parse_sni(&info.payload); }
-            self.firewall.analyze_packet(&info.dst_ip, info.protocol, app_id, domain.as_deref())
-        } else {
-            true
-        }
+
+            let allowed = self.firewall.analyze_packet(&info.dst_ip, info.protocol, app_id, domain.as_deref());
+            if allowed {
+                if let Some(id) = app_id {
+                    self.firewall.record_traffic(id, data.len() as u64, true);
+                }
+            }
+            allowed
+        } else { true }
+    }
+
+    pub fn record_incoming(&mut self, app_id: &str, bytes: u64) {
+        self.firewall.record_traffic(app_id, bytes, false);
     }
 
     pub fn set_security_level(&mut self, level: u8) {
@@ -49,17 +58,20 @@ impl Engine {
     pub fn get_analytics_json(&self) -> String {
         let top = self.firewall.get_top_blocked();
         let protos = self.firewall.get_protocol_counts();
+        let usage = self.firewall.get_app_usage_json();
+
         let mut top_json = String::from("[");
-        for (i, (target, count)) in top.iter().enumerate() { if i > 0 { top_json.push(','); } top_json.push_str(&format!("{{\"t\":\"{}\",\"c\":{}}}", target, count)); }
+        for (i, (t, c)) in top.iter().enumerate() { if i > 0 { top_json.push(','); } top_json.push_str(&format!("{{\"t\":\"{}\",\"c\":{}}}", t, c)); }
         top_json.push(']');
         let mut proto_json = String::from("{");
-        for (i, (proto, count)) in protos.iter().enumerate() { if i > 0 { proto_json.push(','); } proto_json.push_str(&format!("\"{}\":{}", proto, count)); }
+        for (i, (p, c)) in protos.iter().enumerate() { if i > 0 { proto_json.push(','); } proto_json.push_str(&format!("\"{}\":{}", p, c)); }
         proto_json.push('}');
-        format!("{{\"top\": {}, \"protocols\": {}}}", top_json, proto_json)
+
+        format!("{{\"top\": {}, \"protocols\": {}, \"usage\": {}}}", top_json, proto_json, usage)
     }
 
     pub fn check_health(&self) -> u8 { if self.security_level >= 2 { 100 } else if self.security_level == 1 { 90 } else { 80 } }
-    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: ABSOLUTE, DPI: SNI_ENABLED, DNS: {}, KILL_SWITCH: {}", self.upstream_dns, if self.security_level == 4 {"ACTIVE"} else {"READY"}) }
+    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: ABSOLUTE, DPI: SNI_ENABLED, DNS: {}", self.upstream_dns) }
     pub fn heal(&mut self) { Healer::repair_rules(); self.firewall.reset_rules(); }
     pub fn reset_stats(&mut self) { self.firewall.reset_stats(); }
 }

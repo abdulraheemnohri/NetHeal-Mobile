@@ -25,6 +25,7 @@ import com.netheal.NetHealApp
 import com.netheal.data.ThreatLog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -33,78 +34,95 @@ import java.util.*
 fun LogsScreen() {
     val context = LocalContext.current
     var logs by remember { mutableStateOf(listOf<ThreatLog>()) }
+    var appUsage by remember { mutableStateOf(mapOf<String, UsageInfo>()) }
     var searchQuery by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         while (true) {
             logs = NetHealApp.database.netHealDao().getAllLogs()
+            try {
+                val analytics = String(RustBridge.getAnalytics())
+                if (analytics.isNotEmpty()) {
+                    val json = JSONObject(analytics)
+                    val usage = json.getJSONObject("usage")
+                    val map = mutableMapOf<String, UsageInfo>()
+                    usage.keys().forEach { k ->
+                        val obj = usage.getJSONObject(k)
+                        map[k] = UsageInfo(obj.getLong("s"), obj.getLong("r"), obj.getLong("p"))
+                    }
+                    appUsage = map
+                }
+            } catch (e: Exception) {}
             delay(5000)
         }
-    }
-
-    val filteredLogs = if (searchQuery.isEmpty()) logs else logs.filter {
-        it.domain.contains(searchQuery, ignoreCase = true)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF05070A)).padding(20.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Text("IMMUNE LOGS", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                Text("HISTORICAL BLOCK EVENTS", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("TRAFFIC CENTER", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+                Text("REAL-TIME PACKET FLOW", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
-            Row {
-                IconButton(onClick = {
-                    val report = logs.take(20).joinToString("\n") { "${it.domain} | Risk: ${it.riskScore}" }
-                    val sendIntent = Intent().apply { action = Intent.ACTION_SEND; putExtra(Intent.EXTRA_TEXT, "NetHeal Security Report:\n$report"); type = "text/plain" }
-                    context.startActivity(Intent.createChooser(sendIntent, "Share Report"))
-                }) { Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.Gray) }
-                IconButton(onClick = { scope.launch { NetHealApp.database.netHealDao().deleteAllLogs(); logs = emptyList() } }) { Icon(Icons.Default.DeleteSweep, contentDescription = "Clear", tint = Color.Gray) }
+            IconButton(onClick = { scope.launch { NetHealApp.database.netHealDao().deleteAllLogs(); logs = emptyList() } }) { Icon(Icons.Default.DeleteSweep, contentDescription = "Clear", tint = Color.Gray) }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text("A TO Z APP TRAFFIC", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(appUsage.toList().sortedByDescending { it.second.packets }) { (pkg, info) ->
+                TrafficUsageCard(pkg, info)
             }
+            if (appUsage.isEmpty()) { item { Text("Analyzing local data streams...", color = Color.DarkGray, fontSize = 11.sp) } }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Filter by target...", color = Color.Gray, fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color(0xFF00FFA3), unfocusedBorderColor = Color(0xFF161B22), focusedContainerColor = Color(0xFF161B22), unfocusedContainerColor = Color(0xFF161B22)),
-            shape = RoundedCornerShape(12.dp), singleLine = true
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            LogStatCard(modifier = Modifier.weight(1f), label = "MALICIOUS", count = filteredLogs.count { it.riskScore > 80 }.toString(), color = Color.Red)
-            LogStatCard(modifier = Modifier.weight(1f), label = "SUSPICIOUS", count = filteredLogs.count { it.riskScore in 50..80 }.toString(), color = Color.Yellow)
-            LogStatCard(modifier = Modifier.weight(1f), label = "TOTAL", count = RustBridge.getBlockedCount().toString(), color = Color.Gray)
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("CRITICAL THREAT BLOCKS", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(logs.take(20), key = { it.id }) { log -> LogCard(log) }
+            if (logs.isEmpty()) { item { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No threats detected.", color = Color.DarkGray, fontSize = 12.sp) } } }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        if (filteredLogs.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Immune system is quiet.", color = Color.DarkGray, fontSize = 14.sp) } }
-        else {
-            LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(filteredLogs, key = { it.id }) { log -> LogCard(log) }
+    }
+}
+
+data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
+
+@Composable
+fun TrafficUsageCard(pkg: String, info: UsageInfo) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(pkg, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text("${info.packets} Packets Transferred", color = Color.Gray, fontSize = 9.sp)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("↑ ${formatSize(info.sent)}", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("↓ ${formatSize(info.recv)}", color = Color(0xFF2196F3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-@Composable
-fun LogStatCard(modifier: Modifier, label: String, count: String, color: Color) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
-        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, color = color, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-            Text(count, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
-        }
-    }
+fun formatSize(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024f)
+    return String.format("%.1f MB", bytes / (1024f * 1024f))
 }
 
 @Composable
 fun LogCard(log: ThreatLog) {
     val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(log.timestamp))
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(12.dp)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(4.dp, 30.dp).background(if (log.riskScore > 80) Color.Red else Color.Yellow, RoundedCornerShape(2.dp)))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) { Text(log.domain, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1); Text(time, color = Color.Gray, fontSize = 9.sp) }
-            Text("${log.riskScore}", color = if (log.riskScore > 80) Color.Red else Color.Yellow, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(10.dp)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(3.dp, 25.dp).background(Color.Red, RoundedCornerShape(2.dp)))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) { Text(log.domain, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1); Text(time, color = Color.Gray, fontSize = 9.sp) }
+            Text("${log.riskScore}", color = Color.Red, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         }
     }
 }
