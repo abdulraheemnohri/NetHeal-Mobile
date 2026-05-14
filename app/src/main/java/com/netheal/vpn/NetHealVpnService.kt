@@ -25,6 +25,12 @@ class NetHealVpnService : VpnService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
+        if (action == "STOP") {
+            stopVpn()
+            return START_NOT_STICKY
+        }
+
         Log.d("NetHealVpn", "Service starting...")
 
         val builder = Builder()
@@ -32,8 +38,6 @@ class NetHealVpnService : VpnService() {
         builder.addAddress("10.0.0.2", 24)
         builder.addRoute("0.0.0.0", 0)
         builder.setMtu(1500)
-
-        // Block IPv6 to force IPv4 (simplifies demo)
         builder.addAddress("fd00::2", 128)
         builder.addRoute("::", 0)
 
@@ -51,7 +55,7 @@ class NetHealVpnService : VpnService() {
     private fun runVpnLoop(descriptor: ParcelFileDescriptor) {
         val inputStream = FileInputStream(descriptor.fileDescriptor)
         val outputStream = FileOutputStream(descriptor.fileDescriptor)
-        val packet = ByteBuffer.allocate(32768) // Larger buffer for safety
+        val packet = ByteBuffer.allocate(32768)
 
         try {
             while (!Thread.interrupted()) {
@@ -59,13 +63,10 @@ class NetHealVpnService : VpnService() {
                 if (length > 0) {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
-
                     val allowed = RustBridge.handlePacket(data)
-
                     if (allowed) {
                         outputStream.write(data, 0, length)
                     } else {
-                        // Log block event
                         serviceScope.launch {
                             NetHealApp.database.netHealDao().insertLog(
                                 ThreatLog(domain = "PACKET_DROPPED", riskScore = 100, action = "BLOCKED")
@@ -83,10 +84,18 @@ class NetHealVpnService : VpnService() {
                 descriptor.close()
                 inputStream.close()
                 outputStream.close()
-            } catch (e: Exception) {
-                // Ignore
-            }
+            } catch (e: Exception) {}
         }
+    }
+
+    private fun stopVpn() {
+        thread?.interrupt()
+        try {
+            vpnInterface?.close()
+        } catch (e: Exception) {}
+        vpnInterface = null
+        stopForeground(true)
+        stopSelf()
     }
 
     private fun createNotification(content: String): Notification {
@@ -104,8 +113,7 @@ class NetHealVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        thread?.interrupt()
-        vpnInterface?.close()
+        stopVpn()
         super.onDestroy()
     }
 }

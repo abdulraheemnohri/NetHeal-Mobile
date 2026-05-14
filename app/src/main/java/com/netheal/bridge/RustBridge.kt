@@ -17,4 +17,5 @@ object RustBridge {
     external fun addBlacklist(ip: String)
     external fun removeBlacklist(ip: String)
     external fun heal()
+    external fun resetStats()
 }

@@ -24,33 +24,13 @@ impl Firewall {
     }
 
     fn load_defaults(&mut self) {
-        // Expanded list of known tracking, telemetry, and suspicious IPs
         let defaults = vec![
-            "8.8.4.4",          // Google DNS secondary (monitor)
-            "31.13.71.36",      // Facebook
-            "142.250.190.46",   // Google Ads
-            "157.240.22.35",    // Instagram
-            "20.190.129.0",     // MS Telemetry
-            "52.114.0.0",       // MS Office
-            "13.107.42.0",      // MS Shared
-            "185.199.108.0",    // GitHub Pages abused
-            "104.244.42.0",     // Twitter
-            "199.16.156.0",     // Twitter
-            "69.171.224.0",     // FB
-            "66.220.144.0",     // FB
-            "52.2.144.185",     // AdRoll
-            "54.225.143.125",   // AdRoll
-            "23.235.32.0",      // Fastly (Ad serving ranges)
-            "104.16.0.0",       // Cloudflare (selective ranges often used by trackers)
-            "172.217.0.0",      // Google Telemetry
-            "216.58.192.0",     // Google Telemetry
-            "40.76.0.0",        // Microsoft
-            "52.142.0.0",       // Microsoft
-            "1.1.1.1",          // Cloudflare DNS (often used to bypass local filters)
-            "1.0.0.1",
-            "8.8.8.8",
-            "9.9.9.9",          // Quad9
-            "149.112.112.112",
+            "8.8.4.4", "31.13.71.36", "142.250.190.46", "157.240.22.35",
+            "20.190.129.0", "52.114.0.0", "13.107.42.0", "185.199.108.0",
+            "104.244.42.0", "199.16.156.0", "69.171.224.0", "66.220.144.0",
+            "52.2.144.185", "54.225.143.125", "23.235.32.0", "104.16.0.0",
+            "172.217.0.0", "216.58.192.0", "40.76.0.0", "52.142.0.0",
+            "1.1.1.1", "1.0.0.1", "8.8.8.8", "9.9.9.9", "149.112.112.112",
         ];
         for ip in defaults {
             self.blocked_ips.insert(ip.to_string());
@@ -68,17 +48,11 @@ impl Firewall {
             return true;
         }
 
-        // Military Mode: Strict Zero Trust
         if self.military_mode {
-             // In military mode, we block everything not explicitly whitelisted
-             // but to avoid breaking the phone completely in this demo, we block
-             // all private ranges and all common cloud provider IPs.
              if dst_ip.starts_with("10.") || dst_ip.starts_with("192.168.") || dst_ip.starts_with("172.") {
                  self.total_blocked += 1;
                  return false;
              }
-
-             // Block common CDNs used for tracking in military mode
              if dst_ip.starts_with("104.") || dst_ip.starts_with("151.") {
                  self.total_blocked += 1;
                  return false;
@@ -100,34 +74,15 @@ impl Firewall {
         true
     }
 
-    pub fn block_ip(&mut self, ip: &str) {
-        self.blocked_ips.insert(ip.to_string());
-    }
-
-    pub fn unblock_ip(&mut self, ip: &str) {
-        self.blocked_ips.remove(ip);
-    }
-
-    pub fn whitelist_ip(&mut self, ip: &str) {
-        self.whitelisted_ips.insert(ip.to_string());
-    }
-
-    pub fn unwhitelist_ip(&mut self, ip: &str) {
-        self.whitelisted_ips.remove(ip);
-    }
-
+    pub fn block_ip(&mut self, ip: &str) { self.blocked_ips.insert(ip.to_string()); }
+    pub fn unblock_ip(&mut self, ip: &str) { self.blocked_ips.remove(ip); }
+    pub fn whitelist_ip(&mut self, ip: &str) { self.whitelisted_ips.insert(ip.to_string()); }
+    pub fn unwhitelist_ip(&mut self, ip: &str) { self.whitelisted_ips.remove(ip); }
     pub fn set_app_protection(&mut self, app_id: &str, enabled: bool) {
-        if enabled {
-            self.protected_apps.insert(app_id.to_string());
-        } else {
-            self.protected_apps.remove(app_id);
-        }
+        if enabled { self.protected_apps.insert(app_id.to_string()); }
+        else { self.protected_apps.remove(app_id); }
     }
-
-    pub fn get_stats(&self) -> (u64, u64) {
-        (self.total_scanned, self.total_blocked)
-    }
-
+    pub fn get_stats(&self) -> (u64, u64) { (self.total_scanned, self.total_blocked) }
     pub fn reset_rules(&mut self) {
         self.blocked_ips.clear();
         self.protected_apps.clear();

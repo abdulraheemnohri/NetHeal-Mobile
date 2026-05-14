@@ -122,12 +122,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startVpnService() {
-        val intent = Intent(this, NetHealVpnService::class.java)
+        val intent = Intent(this, NetHealVpnService::class.java).apply {
+            action = "START"
+        }
         startService(intent)
     }
 
     private fun stopVpn() {
-        val intent = Intent(this, NetHealVpnService::class.java)
-        stopService(intent)
+        val intent = Intent(this, NetHealVpnService::class.java).apply {
+            action = "STOP"
+        }
+        startService(intent)
     }
 }

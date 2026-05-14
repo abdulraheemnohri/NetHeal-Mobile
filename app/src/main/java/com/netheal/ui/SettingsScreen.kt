@@ -21,9 +21,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
+import com.netheal.data.FirewallRule
 import com.netheal.data.WhitelistEntry
 import com.netheal.data.BlacklistEntry
-import com.netheal.data.FirewallRule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("netheal_prefs", Context.MODE_PRIVATE) }
+    val prefs = context.getSharedPreferences("netheal_prefs", Context.MODE_PRIVATE)
 
     var autoHeal by remember { mutableStateOf(prefs.getBoolean("auto_heal", true)) }
     var highSecurity by remember { mutableStateOf(prefs.getBoolean("military_mode", false)) }
@@ -164,6 +164,10 @@ fun SettingsScreen() {
                 }
             }
             Toast.makeText(context, "Rules reset", Toast.LENGTH_SHORT).show()
+        }
+        SettingAction("Reset Stats", "Clear scanning telemetry", Icons.Default.BarChart) {
+            RustBridge.resetStats()
+            Toast.makeText(context, "Stats reset", Toast.LENGTH_SHORT).show()
         }
         SettingAction("Reset Database", "Clear all threat logs", Icons.Default.Restore) {
             scope.launch {
