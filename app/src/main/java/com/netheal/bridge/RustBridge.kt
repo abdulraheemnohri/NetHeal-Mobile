@@ -8,7 +8,7 @@ object RustBridge {
     external fun analyze(domain: String, requests: Int): Boolean
     external fun handlePacket(packet: ByteArray): Boolean
     external fun setSecurityLevel(level: Int)
-    external fun setAppRule(appId: String, blocked: Boolean)
+    external fun setAppRule(appId: String, state: Int)
     external fun getBlockedCount(): Long
     external fun getScannedCount(): Long
     external fun getSecurityScore(): Int
@@ -18,4 +18,6 @@ object RustBridge {
     external fun removeBlacklist(ip: String)
     external fun heal()
     external fun resetStats()
+    external fun getAnalytics(): ByteArray
+    external fun runDiagnostics(): ByteArray
 }

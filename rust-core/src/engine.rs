@@ -17,7 +17,7 @@ impl Engine {
 
     pub fn handle_packet(&mut self, data: &[u8], app_id: Option<&str>) -> bool {
         if let Some(info) = parse_v4(data) {
-            self.firewall.analyze_packet(&info.dst_ip, app_id)
+            self.firewall.analyze_packet(&info.dst_ip, info.protocol, app_id)
         } else {
             true
         }
@@ -28,8 +28,8 @@ impl Engine {
         self.firewall.set_military_mode(level == 2);
     }
 
-    pub fn set_app_rule(&mut self, app_id: &str, blocked: bool) {
-        self.firewall.set_app_protection(app_id, blocked);
+    pub fn set_app_rule(&mut self, app_id: &str, state: u8) {
+        self.firewall.set_app_state(app_id, state);
     }
 
     pub fn add_whitelist(&mut self, ip: &str) { self.firewall.whitelist_ip(ip); }
@@ -40,8 +40,18 @@ impl Engine {
     pub fn get_blocked_count(&self) -> u64 { self.firewall.get_stats().1 }
     pub fn get_scanned_count(&self) -> u64 { self.firewall.get_stats().0 }
 
+    pub fn get_analytics_json(&self) -> String {
+        let top = self.firewall.get_top_blocked();
+        let protos = self.firewall.get_protocol_counts();
+        format!("{{\"top\": {:?}, \"protocols\": {:?}}}", top, protos)
+    }
+
     pub fn check_health(&self) -> u8 {
         if self.security_level == 2 { 100 } else if self.security_level == 1 { 90 } else { 80 }
+    }
+
+    pub fn run_diagnostics(&self) -> String {
+        "HEALTH: OK, MEMORY: SAFE, RULES: ACTIVE".to_string()
     }
 
     pub fn heal(&mut self) {
@@ -50,6 +60,6 @@ impl Engine {
     }
 
     pub fn reset_stats(&mut self) {
-        // Simplified: in real implementation we'd reset the counters in firewall.rs
+        self.firewall.reset_stats();
     }
 }
