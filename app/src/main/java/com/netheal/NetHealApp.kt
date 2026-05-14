@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.netheal.bridge.RustBridge
 import com.netheal.data.AppDatabase
 import com.netheal.data.UsageStats
@@ -67,6 +69,10 @@ class NetHealApp : Application() {
         }
         database.netHealDao().getBlacklist().forEach { entry ->
             RustBridge.addBlacklist(entry.target)
+        }
+        database.netHealDao().getAllCustomRules().forEach { rule ->
+            if (rule.isBlocked) RustBridge.addBlacklist(rule.pattern)
+            else RustBridge.addWhitelist(rule.pattern)
         }
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
         val isMilitary = prefs.getBoolean("military_mode", false)

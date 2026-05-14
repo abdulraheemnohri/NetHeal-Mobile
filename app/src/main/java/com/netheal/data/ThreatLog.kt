@@ -27,6 +27,15 @@ data class BlacklistEntry(
     @PrimaryKey val target: String
 )
 
+@Entity(tableName = "custom_rules")
+data class CustomRule(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val pattern: String,
+    val isDomain: Boolean,
+    val isBlocked: Boolean,
+    val description: String = ""
+)
+
 @Entity(tableName = "usage_stats")
 data class UsageStats(
     @PrimaryKey val day: String,
@@ -66,13 +75,22 @@ interface NetHealDao {
     @Delete
     suspend fun removeFromBlacklist(entry: BlacklistEntry)
 
+    @Query("SELECT * FROM custom_rules")
+    suspend fun getAllCustomRules(): List<CustomRule>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveCustomRule(rule: CustomRule)
+    @Delete
+    suspend fun deleteCustomRule(rule: CustomRule)
+    @Query("DELETE FROM custom_rules")
+    suspend fun deleteAllCustomRules()
+
     @Query("SELECT * FROM usage_stats WHERE day = :day")
     suspend fun getStatsForDay(day: String): UsageStats?
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateStats(stats: UsageStats)
 }
 
-@Database(entities = [ThreatLog::class, FirewallRule::class, WhitelistEntry::class, BlacklistEntry::class, UsageStats::class], version = 6)
+@Database(entities = [ThreatLog::class, FirewallRule::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, UsageStats::class], version = 7)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }

@@ -23,11 +23,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_analyze(
 ) -> jboolean {
     let domain: String = env.get_string(&domain).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
-    if engine.handle_packet(domain.as_bytes(), None) {
-        1
-    } else {
-        0
-    }
+    if engine.handle_packet(domain.as_bytes(), None) { 1 } else { 0 }
 }
 
 #[no_mangle]
@@ -39,11 +35,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
     let packet_array = unsafe { JByteArray::from_raw(packet) };
     let data = env.convert_byte_array(packet_array).unwrap_or_default();
     let mut engine = ENGINE.lock().unwrap();
-    if engine.handle_packet(&data, None) {
-        1
-    } else {
-        0
-    }
+    if engine.handle_packet(&data, None) { 1 } else { 0 }
 }
 
 #[no_mangle]
@@ -146,4 +138,13 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getScannedCount(
 ) -> jlong {
     let engine = ENGINE.lock().unwrap();
     engine.get_scanned_count() as jlong
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_resetStats(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.reset_stats();
 }
