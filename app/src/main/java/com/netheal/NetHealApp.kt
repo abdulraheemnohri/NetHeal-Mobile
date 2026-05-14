@@ -5,7 +5,6 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import androidx.room.Room
 import com.netheal.bridge.RustBridge
@@ -54,7 +53,10 @@ class NetHealApp : Application() {
     }
 
     private suspend fun restoreEngineState() {
-        database.netHealDao().getAllRules().forEach { rule -> RustBridge.setAppRule(rule.appId, rule.state) }
+        database.netHealDao().getAllRules().forEach { rule ->
+            RustBridge.setAppRule(rule.appId, rule.state)
+            RustBridge.setAppBwLimit(rule.appId, rule.bwLimit)
+        }
         database.netHealDao().getWhitelist().forEach { entry -> RustBridge.addWhitelist(entry.domain, entry.domain.contains(Regex("[a-zA-Z]"))) }
         database.netHealDao().getBlacklist().forEach { entry -> RustBridge.addBlacklist(entry.target, entry.target.contains(Regex("[a-zA-Z]"))) }
         database.netHealDao().getAllCustomRules().forEach { rule ->

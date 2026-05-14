@@ -44,6 +44,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
     var scannedCount by remember { mutableStateOf(0L) }
     var topBlocked by remember { mutableStateOf(listOf<Pair<String, Long>>()) }
     var protoStats by remember { mutableStateOf(mapOf<String, Long>()) }
+    var appUsage by remember { mutableStateOf(mapOf<String, UsageInfo>()) }
     var isScanning by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
@@ -67,6 +68,10 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
                     val pMap = mutableMapOf<String, Long>()
                     protos.keys().forEach { k -> pMap[k] = protos.getLong(k) }
                     protoStats = pMap
+                    val usage = json.getJSONObject("usage")
+                    val uMap = mutableMapOf<String, UsageInfo>()
+                    usage.keys().forEach { k -> val obj = usage.getJSONObject(k); uMap[k] = UsageInfo(obj.getLong("s"), obj.getLong("r"), obj.getLong("p")) }
+                    appUsage = uMap
                 }
             } catch (e: Exception) {}
             delay(2000)
@@ -77,7 +82,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoCard(modifier = Modifier.weight(1f), label = "IMMUNE SYSTEM", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
+            InfoCard(modifier = Modifier.weight(1f), label = "ABSOLUTE CORE", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
             InfoCard(modifier = Modifier.weight(1f), label = "ACTIVE DEFENSES", value = "${blockedCount + 256}", color = Color.Yellow, icon = Icons.Default.Shield)
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -92,7 +97,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(imageVector = if (isEnabled) Icons.Default.Shield else Icons.Default.ShieldMoon, contentDescription = null, modifier = Modifier.size(48.dp), tint = primaryColor)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(if (isEnabled) "IMMUNE" else "OFF", color = primaryColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isEnabled) "SECURE" else "OFF", color = primaryColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -102,7 +107,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
         ProtocolDistribution(protoStats)
         Spacer(modifier = Modifier.height(16.dp))
-        RealTimeTerminal(primaryColor)
+        BandwidthGauge(appUsage)
         Spacer(modifier = Modifier.height(16.dp))
         NodeTopologyMap(primaryColor)
         Spacer(modifier = Modifier.height(16.dp))
@@ -118,7 +123,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)),
             shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1C2128))
         ) {
-            if (isScanning) { CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00FFA3), strokeWidth = 2.dp); Spacer(modifier = Modifier.width(12.dp)); Text("CORE RESYNC...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            if (isScanning) { CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00FFA3), strokeWidth = 2.dp); Spacer(modifier = Modifier.width(12.dp)); Text("RE-SYNCING...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
             else { Icon(Icons.Default.Radar, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(10.dp)); Text("RUN ABSOLUTE SCAN", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
         }
         Spacer(modifier = Modifier.height(40.dp))
@@ -126,20 +131,30 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
 }
 
 @Composable
-fun RealTimeTerminal(color: Color) {
-    val lines = remember { mutableStateListOf<String>() }
-    LaunchedEffect(Unit) {
-        val msgs = listOf("PKT_IN: TCP -> 1.1.1.1", "BLOCK: tracker.io", "UDP: 8.8.8.8 -> DNS", "TLS_SNI: google.com", "ENGINE_OK", "ABSOLUTE: READY")
-        while (true) {
-            if (lines.size > 3) lines.removeAt(0)
-            lines.add(msgs.random())
-            delay(1200)
+fun BandwidthGauge(usage: Map<String, UsageInfo>) {
+    val totalSent = usage.values.sumOf { it.sent }
+    val totalRecv = usage.values.sumOf { it.recv }
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("DATA FLOW GAUGES", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Gauge(modifier = Modifier.weight(1f), label = "UPLOAD", value = formatSize(totalSent), color = Color(0xFF00FFA3))
+                Gauge(modifier = Modifier.weight(1f), label = "DOWNLOAD", value = formatSize(totalRecv), color = Color(0xFF2196F3))
+            }
         }
     }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.Black), shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.2f))) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            lines.forEach { line -> Text("> $line", color = color.copy(alpha = 0.7f), fontSize = 9.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
+}
+
+@Composable
+fun Gauge(modifier: Modifier, label: String, value: String, color: Color) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(modifier = Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(progress = 0.6f, modifier = Modifier.fillMaxSize(), color = color, strokeWidth = 4.dp, trackColor = Color(0xFF161B22))
+            Text(value.split(" ").first(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
 

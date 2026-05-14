@@ -65,6 +65,18 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setAppRule(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setAppBwLimit(
+    mut env: JNIEnv,
+    _class: JClass,
+    app_id: JString,
+    limit: jlong,
+) {
+    let app_id: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_app_bw_limit(&app_id, limit as u64);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_addWhitelist(
     mut env: JNIEnv,
     _class: JClass,

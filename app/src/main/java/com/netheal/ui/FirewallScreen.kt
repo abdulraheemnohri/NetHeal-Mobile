@@ -40,11 +40,11 @@ fun FirewallScreen() {
     var whitelist by remember { mutableStateOf(listOf<WhitelistEntry>()) }
     var blacklist by remember { mutableStateOf(listOf<BlacklistEntry>()) }
     var bypassApps by remember { mutableStateOf(setOf<String>()) }
+    var schedules by remember { mutableStateOf(listOf<Schedule>()) }
 
     var searchQuery by remember { mutableStateOf("") }
     var showSystemApps by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
-
     val scope = rememberCoroutineScope()
 
     fun loadData() {
@@ -57,6 +57,7 @@ fun FirewallScreen() {
             whitelist = NetHealApp.database.netHealDao().getWhitelist()
             blacklist = NetHealApp.database.netHealDao().getBlacklist()
             bypassApps = NetHealApp.database.netHealDao().getBypassApps().map { it.appId }.toSet()
+            schedules = NetHealApp.database.netHealDao().getAllSchedules()
         }
     }
 
@@ -66,30 +67,59 @@ fun FirewallScreen() {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("POLICY COMMAND", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                Text("ABSOLUTE TRAFFIC CONTROL", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("OMEGA TRAFFIC CONTROL", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = { loadData() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.Gray) }
         }
-
         Spacer(modifier = Modifier.height(20.dp))
-
         ScrollableTabRow(
             selectedTabIndex = activeTab, containerColor = Color.Transparent, contentColor = Color(0xFF00FFA3), edgePadding = 0.dp, divider = {},
             indicator = { tabPositions -> TabRowDefaults.Indicator(modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab]), color = Color(0xFF00FFA3)) }
         ) {
-            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("APP SHIELD", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("ISOLATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Tab(selected = activeTab == 1, onClick = { activeTab = 1 }) { Text("POLICIES", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) { Text("GLOBAL LISTS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) { Text("BYPASS LIST", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) { Text("AUTOMATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 4, onClick = { activeTab = 4 }) { Text("BYPASS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         }
-
         Spacer(modifier = Modifier.height(20.dp))
-
         when (activeTab) {
             0 -> AppShieldSection(searchQuery, { searchQuery = it }, allApps, showSystemApps, { showSystemApps = it })
             1 -> CustomRulesSection(customRules, { loadData() })
             2 -> GlobalListsSection(whitelist, blacklist, { loadData() })
-            3 -> BypassSection(allApps, bypassApps, { loadData() })
+            3 -> AutomationSection(schedules, { loadData() })
+            4 -> BypassSection(allApps, bypassApps, { loadData() })
+        }
+    }
+}
+
+@Composable
+fun AutomationSection(schedules: List<Schedule>, onUpdate: () -> Unit) {
+    var showAdd by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(10.dp)) {
+            Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFF00FFA3))
+            Spacer(modifier = Modifier.width(8.dp)); Text("NEW OMEGA SCHEDULE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(schedules) { s ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117))) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(s.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("${s.startTime} - ${s.endTime} | Profile Lvl: ${s.profileLevel}", color = Color.Gray, fontSize = 10.sp)
+                        }
+                        Switch(checked = s.isActive, onCheckedChange = {
+                            scope.launch(Dispatchers.IO) {
+                                NetHealApp.database.netHealDao().saveSchedule(s.copy(isActive = it))
+                                withContext(Dispatchers.Main) { onUpdate() }
+                            }
+                        }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FFA3)))
+                    }
+                }
+            }
         }
     }
 }
@@ -127,7 +157,7 @@ fun BypassSection(allApps: List<Pair<String, String>>, bypass: Set<String>, onUp
                     Switch(checked = isBypassed, onCheckedChange = {
                         scope.launch(Dispatchers.IO) {
                             if (it) NetHealApp.database.netHealDao().addBypassApp(BypassApp(pkg))
-                            else NetHealApp.database.netHealDao().removeBypassApp(BypassApp(pkg))
+                            else NetHealApp.database.netHealDao().removeBypassApp(pkg.let { BypassApp(it) })
                             withContext(Dispatchers.Main) { onUpdate() }
                         }
                     }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FFA3)))
@@ -199,15 +229,16 @@ fun CustomRuleItem(rule: CustomRule, onEdit: () -> Unit, onDelete: () -> Unit) {
 
 @Composable
 fun AppRuleItem(appId: String, appName: String) {
-    var state by remember { mutableStateOf(0) }
+    var rule by remember { mutableStateOf<FirewallRule?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(appId) { state = NetHealApp.database.netHealDao().getAppState(appId) ?: 0 }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (state == 2) Color.Red.copy(alpha = 0.2f) else if (state == 1) Color.Yellow.copy(alpha = 0.2f) else Color(0xFF161B22))) {
+    LaunchedEffect(appId) { rule = NetHealApp.database.netHealDao().getRule(appId) ?: FirewallRule(appId, 0, 0) }
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (rule?.state == 2) Color.Red.copy(alpha = 0.2f) else if (rule?.state == 1) Color.Yellow.copy(alpha = 0.2f) else Color(0xFF161B22))) {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) { Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text(appId, color = Color.Gray, fontSize = 9.sp, maxLines = 1) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { state = if (state == 1) 0 else 1; RustBridge.setAppRule(appId, state); scope.launch { NetHealApp.database.netHealDao().saveRule(FirewallRule(appId, state)) } }) { Icon(Icons.Default.Wifi, contentDescription = null, tint = if (state == 1) Color.Yellow else Color.Gray, modifier = Modifier.size(18.dp)) }
-                IconButton(onClick = { state = if (state == 2) 0 else 2; RustBridge.setAppRule(appId, state); scope.launch { NetHealApp.database.netHealDao().saveRule(FirewallRule(appId, state)) } }) { Icon(Icons.Default.Block, contentDescription = null, tint = if (state == 2) Color.Red else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val s = if (rule?.state == 1) 0 else 1; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Wifi, contentDescription = null, tint = if (rule?.state == 1) Color.Yellow else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val s = if (rule?.state == 2) 0 else 2; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Block, contentDescription = null, tint = if (rule?.state == 2) Color.Red else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val l = if (rule?.bwLimit == 0L) 100000L else 0L; RustBridge.setAppBwLimit(appId, l); scope.launch { val nr = FirewallRule(appId, rule?.state ?: 0, l); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Speed, contentDescription = null, tint = if ((rule?.bwLimit ?: 0) > 0) Color.Cyan else Color.Gray, modifier = Modifier.size(18.dp)) }
             }
         }
     }

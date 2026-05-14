@@ -5,9 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -35,7 +37,6 @@ fun LogsScreen() {
     val context = LocalContext.current
     var logs by remember { mutableStateOf(listOf<ThreatLog>()) }
     var appUsage by remember { mutableStateOf(mapOf<String, UsageInfo>()) }
-    var searchQuery by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -62,30 +63,30 @@ fun LogsScreen() {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("TRAFFIC CENTER", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                Text("REAL-TIME PACKET FLOW", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("ABSOLUTE DATA TELEMETRY", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = { scope.launch { NetHealApp.database.netHealDao().deleteAllLogs(); logs = emptyList() } }) { Icon(Icons.Default.DeleteSweep, contentDescription = "Clear", tint = Color.Gray) }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text("A TO Z APP TRAFFIC", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("A TO Z APP BANDWIDTH", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(10.dp))
 
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(modifier = Modifier.weight(1.3f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(appUsage.toList().sortedByDescending { it.second.packets }) { (pkg, info) ->
                 TrafficUsageCard(pkg, info)
             }
-            if (appUsage.isEmpty()) { item { Text("Analyzing local data streams...", color = Color.DarkGray, fontSize = 11.sp) } }
+            if (appUsage.isEmpty()) { item { Text("Analyzing data streams...", color = Color.DarkGray, fontSize = 11.sp) } }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-        Text("CRITICAL THREAT BLOCKS", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("CRITICAL INTERCEPTIONS", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(10.dp))
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(logs.take(20), key = { it.id }) { log -> LogCard(log) }
-            if (logs.isEmpty()) { item { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No threats detected.", color = Color.DarkGray, fontSize = 12.sp) } } }
+            if (logs.isEmpty()) { item { Text("No threats detected.", color = Color.DarkGray, fontSize = 12.sp) } }
         }
     }
 }
@@ -94,11 +95,15 @@ data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
 
 @Composable
 fun TrafficUsageCard(pkg: String, info: UsageInfo) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(24.dp).background(Color(0xFF161B22), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Apps, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(14.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(pkg, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("${info.packets} Packets Transferred", color = Color.Gray, fontSize = 9.sp)
+                Text(pkg.split(".").last().uppercase(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text("${info.packets} PKTS", color = Color.Gray, fontSize = 8.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("↑ ${formatSize(info.sent)}", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
