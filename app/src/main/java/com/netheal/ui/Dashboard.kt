@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
 import com.netheal.data.ThreatLog
+import com.netheal.data.UsageStats
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -76,7 +77,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoCard(modifier = Modifier.weight(1f), label = "ABSOLUTE CORE", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
+            InfoCard(modifier = Modifier.weight(1f), label = "IMMUNE SYSTEM", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
             InfoCard(modifier = Modifier.weight(1f), label = "ACTIVE DEFENSES", value = "${blockedCount + 256}", color = Color.Yellow, icon = Icons.Default.Shield)
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -91,7 +92,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(imageVector = if (isEnabled) Icons.Default.Shield else Icons.Default.ShieldMoon, contentDescription = null, modifier = Modifier.size(48.dp), tint = primaryColor)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(if (isEnabled) "SECURE" else "OFF", color = primaryColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isEnabled) "IMMUNE" else "OFF", color = primaryColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -117,7 +118,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)),
             shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1C2128))
         ) {
-            if (isScanning) { CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00FFA3), strokeWidth = 2.dp); Spacer(modifier = Modifier.width(12.dp)); Text("RE-SYNCING...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            if (isScanning) { CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00FFA3), strokeWidth = 2.dp); Spacer(modifier = Modifier.width(12.dp)); Text("CORE RESYNC...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
             else { Icon(Icons.Default.Radar, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(10.dp)); Text("RUN ABSOLUTE SCAN", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
         }
         Spacer(modifier = Modifier.height(40.dp))
@@ -128,7 +129,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
 fun RealTimeTerminal(color: Color) {
     val lines = remember { mutableStateListOf<String>() }
     LaunchedEffect(Unit) {
-        val msgs = listOf("PKT_IN: TCP -> 1.1.1.1", "BLOCK: tracker.io", "UDP: 8.8.8.8 -> DNS", "TLS_SNI: google.com", "ENGINE_OK", "SCAN: ACTIVE")
+        val msgs = listOf("PKT_IN: TCP -> 1.1.1.1", "BLOCK: tracker.io", "UDP: 8.8.8.8 -> DNS", "TLS_SNI: google.com", "ENGINE_OK", "ABSOLUTE: READY")
         while (true) {
             if (lines.size > 3) lines.removeAt(0)
             lines.add(msgs.random())
@@ -137,9 +138,7 @@ fun RealTimeTerminal(color: Color) {
     }
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.Black), shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.2f))) {
         Column(modifier = Modifier.padding(10.dp)) {
-            lines.forEach { line ->
-                Text("> $line", color = color.copy(alpha = 0.7f), fontSize = 9.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-            }
+            lines.forEach { line -> Text("> $line", color = color.copy(alpha = 0.7f), fontSize = 9.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
         }
     }
 }
@@ -147,14 +146,12 @@ fun RealTimeTerminal(color: Color) {
 @Composable
 fun NodeTopologyMap(color: Color) {
     val nodes = remember { List(10) { Offset((Math.random() * 800).toFloat(), (Math.random() * 300).toFloat()) } }
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(initialValue = 0.1f, targetValue = 0.4f, animationSpec = infiniteRepeatable(animation = tween(2000, easing = LinearEasing), repeatMode = RepeatMode.Reverse), label = "alpha")
     Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
         Box(modifier = Modifier.padding(12.dp)) {
             Text("NODE TOPOLOGY", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             Canvas(modifier = Modifier.fillMaxSize()) {
-                nodes.forEach { node -> drawCircle(color = color.copy(alpha = alpha), radius = 4f, center = node) }
-                for (i in 0 until nodes.size - 1) { drawLine(color = color.copy(alpha = 0.05f), start = nodes[i], end = nodes[i+1], strokeWidth = 1f) }
+                nodes.forEach { node -> drawCircle(color = color.copy(alpha = 0.2f), radius = 4f, center = node) }
+                for (i in 0 until nodes.size - 1) { drawLine(color = color.copy(alpha = 0.1f), start = nodes[i], end = nodes[i+1], strokeWidth = 1f) }
             }
         }
     }

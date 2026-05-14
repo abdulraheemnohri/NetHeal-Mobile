@@ -71,9 +71,9 @@ fun FirewallScreen() {
             selectedTabIndex = activeTab, containerColor = Color.Transparent, contentColor = Color(0xFF00FFA3), edgePadding = 0.dp, divider = {},
             indicator = { tabPositions -> TabRowDefaults.Indicator(modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab]), color = Color(0xFF00FFA3)) }
         ) {
-            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("APP ISOLATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("ISOLATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Tab(selected = activeTab == 1, onClick = { activeTab = 1 }) { Text("POLICIES", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) { Text("GLOBAL LISTS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) { Text("LISTS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) { Text("INTELLIGENT AUDIT", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         }
         Spacer(modifier = Modifier.height(20.dp))
@@ -88,23 +88,22 @@ fun FirewallScreen() {
 
 @Composable
 fun IntelligentAuditSection(apps: List<Pair<String, String>>) {
-    // Scoring logic: high score = high risk
     val auditList = apps.map { (pkg, label) ->
         var risk = 20
-        if (pkg.contains("ads") || pkg.contains("telemetry") || pkg.contains("tracker")) risk += 60
-        if (!pkg.contains("android") && !pkg.contains("google")) risk += 15
+        if (pkg.contains("ads") || pkg.contains("telemetry") || pkg.contains("tracker") || pkg.contains("analytics")) risk += 65
+        if (!pkg.contains("android") && !pkg.contains("google")) risk += 10
         pkg to risk
     }.sortedByDescending { it.second }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(auditList.take(20)) { (pkg, score) ->
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (score > 75) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
+        items(auditList.take(25)) { (pkg, score) ->
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (score > 70) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(pkg, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text(if (score > 75) "UNVERIFIED EXTERNAL SYNDICATE" else if (score > 40) "POTENTIAL ANALYTICS LINK" else "TRUSTED CORE COMPONENT", color = if (score > 75) Color.Red else Color.Gray, fontSize = 9.sp)
+                        Text(if (score > 70) "ABNORMAL DATA SYNDICATE" else if (score > 30) "VERIFIED UTILITY" else "CORE SYSTEM", color = if (score > 70) Color.Red else Color.Gray, fontSize = 9.sp)
                     }
-                    Text("$score", color = if (score > 75) Color.Red else Color(0xFF00FFA3), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Text("$score", color = if (score > 70) Color.Red else Color(0xFF00FFA3), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                 }
             }
         }

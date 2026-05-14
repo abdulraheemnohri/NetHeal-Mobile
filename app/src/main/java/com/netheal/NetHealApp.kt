@@ -5,7 +5,6 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import androidx.room.Room
 import com.netheal.bridge.RustBridge
@@ -25,6 +24,7 @@ class NetHealApp : Application() {
 
         fun isServiceRunning(context: Context): Boolean {
             val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            @Suppress("DEPRECATION")
             return manager.getRunningServices(Integer.MAX_VALUE).any { it.service.className == NetHealVpnService::class.java.name }
         }
     }
@@ -33,9 +33,7 @@ class NetHealApp : Application() {
         super.onCreate()
         database = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "netheal-db").fallbackToDestructiveMigration().build()
         createNotificationChannel()
-
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 restoreEngineState()
@@ -44,18 +42,10 @@ class NetHealApp : Application() {
                     val scanned = RustBridge.getScannedCount()
                     val blocked = RustBridge.getBlockedCount()
                     database.netHealDao().updateStats(UsageStats(today, scanned, blocked))
-
                     if (prefs.getBoolean("auto_cleanup", true)) {
                         val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
                         database.netHealDao().deleteLogsOlderThan(sevenDaysAgo)
                     }
-
-                    // Auto-Heal: Restart service if it should be running but isn't
-                    if (prefs.getBoolean("auto_heal", true) && !isServiceRunning(applicationContext)) {
-                        // Check if it was manually stopped or if it crashed
-                        // For this demo, if auto-heal is on, we try to ensure it's up
-                    }
-
                     delay(60000)
                 }
             } catch (e: Exception) {}
@@ -77,6 +67,8 @@ class NetHealApp : Application() {
         var level = 0
         if (isKillSwitch) level = 4 else if (isLockdown) level = 3 else if (isMilitary) level = 2
         RustBridge.setSecurityLevel(level)
+        val dns = prefs.getString("upstream_dns", "Cloudflare") ?: "Cloudflare"
+        RustBridge.setUpstreamDns(if (dns == "Cloudflare") "1.1.1.1" else if (dns == "AdGuard") "94.140.14.14" else "8.8.8.8")
     }
 
     private fun createNotificationChannel() {

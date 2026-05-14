@@ -39,19 +39,15 @@ impl Firewall {
     fn load_defaults(&mut self) {
         let wl_ips = vec!["127.0.0.1", "10.0.0.2", "8.8.8.8", "1.1.1.1"];
         for ip in wl_ips { self.whitelisted_ips.insert(ip.to_string()); }
-        let wl_domains = vec!["android.com", "google.com", "gstatic.com", "akamaized.net"];
+        let wl_domains = vec!["android.com", "google.com", "gstatic.com"];
         for d in wl_domains { self.whitelisted_domains.insert(d.to_string()); }
-        let bl_ips = vec!["31.13.71.36", "142.250.190.46", "157.240.22.35", "52.2.144.185"];
+        let bl_ips = vec!["31.13.71.36", "142.250.190.46"];
         for ip in bl_ips { self.blocked_ips.insert(ip.to_string()); }
-        let bl_domains = vec!["telemetry.os", "ads.service.net", "tracker.io", "doubleclick.net", "facebook.net"];
+        let bl_domains = vec!["telemetry.os", "ads.service.net", "tracker.io"];
         for d in bl_domains { self.blocked_domains.insert(d.to_string()); }
     }
 
-    pub fn force_block_stat(&mut self) {
-        self.total_scanned += 1;
-        self.total_blocked += 1;
-    }
-
+    pub fn force_block_stat(&mut self) { self.total_scanned += 1; self.total_blocked += 1; }
     pub fn set_lockdown(&mut self, enabled: bool) { self.lockdown_mode = enabled; }
     pub fn set_kill_switch(&mut self, enabled: bool) { self.kill_switch = enabled; }
 
