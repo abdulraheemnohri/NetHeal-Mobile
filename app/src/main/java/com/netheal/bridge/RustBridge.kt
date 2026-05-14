@@ -12,10 +12,10 @@ object RustBridge {
     external fun getBlockedCount(): Long
     external fun getScannedCount(): Long
     external fun getSecurityScore(): Int
-    external fun addWhitelist(ip: String)
-    external fun removeWhitelist(ip: String)
-    external fun addBlacklist(ip: String)
-    external fun removeBlacklist(ip: String)
+    external fun addWhitelist(valStr: String, isDomain: Boolean)
+    external fun removeWhitelist(valStr: String, isDomain: Boolean)
+    external fun addBlacklist(valStr: String, isDomain: Boolean)
+    external fun removeBlacklist(valStr: String, isDomain: Boolean)
     external fun heal()
     external fun resetStats()
     external fun getAnalytics(): ByteArray

@@ -2,7 +2,10 @@ package com.netheal.ui
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -37,12 +40,9 @@ fun SettingsScreen() {
 
     var autoHeal by remember { mutableStateOf(prefs.getBoolean("auto_heal", true)) }
     var highSecurity by remember { mutableStateOf(prefs.getBoolean("military_mode", false)) }
+    var lockdownMode by remember { mutableStateOf(prefs.getBoolean("lockdown_mode", false)) }
     var startOnBoot by remember { mutableStateOf(prefs.getBoolean("start_on_boot", true)) }
     var silentMode by remember { mutableStateOf(prefs.getBoolean("silent_mode", false)) }
-    var autoCleanup by remember { mutableStateOf(prefs.getBoolean("auto_cleanup", true)) }
-
-    var whitelistDomain by remember { mutableStateOf("") }
-    var blacklistTarget by remember { mutableStateOf("") }
 
     var whitelist by remember { mutableStateOf(listOf<WhitelistEntry>()) }
     var blacklist by remember { mutableStateOf(listOf<BlacklistEntry>()) }
@@ -63,26 +63,34 @@ fun SettingsScreen() {
         Text("ENGINE AND SYSTEM PARAMETERS", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
 
         Spacer(modifier = Modifier.height(30.dp))
-        Text("Security Engine", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("Stability & Persistence", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
 
-        SettingToggle("Auto-Healing Core", "Automatically restores rules on failure", autoHeal) { autoHeal = it; prefs.edit().putBoolean("auto_heal", it).apply() }
-        SettingToggle("Military Security", "Strict filtering, zero-bypass mode", highSecurity) { highSecurity = it; prefs.edit().putBoolean("military_mode", it).apply(); RustBridge.setSecurityLevel(if (it) 2 else 0) }
-        SettingToggle("Silent Mode", "Supress non-critical notifications", silentMode) { silentMode = it; prefs.edit().putBoolean("silent_mode", it).apply() }
-        SettingToggle("Start on Boot", "Automatically start VPN at device boot", startOnBoot) { startOnBoot = it; prefs.edit().putBoolean("start_on_boot", it).apply() }
-        SettingToggle("Auto-Cleanup Logs", "Delete logs older than 7 days", autoCleanup) { autoCleanup = it; prefs.edit().putBoolean("auto_cleanup", it).apply() }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Policy Management", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-
-        ConfigInputRow("Whitelist Domain", whitelistDomain, { whitelistDomain = it }) {
-            if (whitelistDomain.isNotEmpty()) {
-                val domain = whitelistDomain
-                RustBridge.addWhitelist(domain)
-                scope.launch { NetHealApp.database.netHealDao().addToWhitelist(WhitelistEntry(domain)); whitelist = NetHealApp.database.netHealDao().getWhitelist() }
-                whitelistDomain = ""
+        if (!isIgnoringBattery) {
+            SettingAction("Disable Battery Optimization", "Keep firewall alive in background", Icons.Default.BatteryAlert) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                }
             }
         }
-        whitelist.take(3).forEach { entry -> ConfigListItem(entry.domain) { scope.launch { NetHealApp.database.netHealDao().removeFromWhitelist(entry); RustBridge.removeWhitelist(entry.domain); whitelist = NetHealApp.database.netHealDao().getWhitelist() } } }
+
+        SettingToggle("Auto-Healing Core", "Automatically restores rules on failure", autoHeal) { autoHeal = it; prefs.edit().putBoolean("auto_heal", it).apply() }
+        SettingToggle("Start on Boot", "Automatically start VPN at device boot", startOnBoot) { startOnBoot = it; prefs.edit().putBoolean("start_on_boot", it).apply() }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Security Engine", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+        SettingToggle("Lockdown Mode", "Drop ALL non-whitelisted traffic", lockdownMode) {
+            lockdownMode = it; prefs.edit().putBoolean("lockdown_mode", it).apply()
+            RustBridge.setSecurityLevel(if (it) 3 else if (highSecurity) 2 else 0)
+        }
+        SettingToggle("Military Security", "Aggressive filtering rules", highSecurity) {
+            highSecurity = it; prefs.edit().putBoolean("military_mode", it).apply()
+            if (!lockdownMode) RustBridge.setSecurityLevel(if (it) 2 else 0)
+        }
+        SettingToggle("Silent Mode", "Supress non-critical notifications", silentMode) { silentMode = it; prefs.edit().putBoolean("silent_mode", it).apply() }
 
         Spacer(modifier = Modifier.height(32.dp))
         Text("System Tools", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -92,24 +100,11 @@ fun SettingsScreen() {
             Toast.makeText(context, result, Toast.LENGTH_LONG).show()
         }
 
-        SettingAction("Export Policies", "Export rules to JSON", Icons.Default.FileUpload) {
-            scope.launch {
-                val rules = NetHealApp.database.netHealDao().getAllCustomRules()
-                val json = JSONArray()
-                rules.forEach { json.put(JSONObject().apply { put("pattern", it.pattern); put("blocked", it.isBlocked) }) }
-                Toast.makeText(context, "Policies exported to cache", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Maintenance", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-
         SettingAction("Repair System", "Force run healing logic", Icons.Default.Build) { RustBridge.heal(); Toast.makeText(context, "Healing engine...", Toast.LENGTH_SHORT).show() }
         SettingAction("Reset Stats", "Clear scanning telemetry", Icons.Default.BarChart) { RustBridge.resetStats(); Toast.makeText(context, "Stats reset", Toast.LENGTH_SHORT).show() }
-        SettingAction("Reset Database", "Clear all threat logs", Icons.Default.Restore) { scope.launch { NetHealApp.database.netHealDao().deleteAllLogs(); Toast.makeText(context, "Logs cleared", Toast.LENGTH_SHORT).show() } }
 
         Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.Gray.copy(alpha = 0.1f))
-        SystemInfoItem("Engine Version", "v1.5.0-Pro-Rust")
+        SystemInfoItem("Engine Version", "v2.0.0-Immune-Rust")
         SystemInfoItem("Battery Opt", if (isIgnoringBattery) "Optimized" else "Restricted")
         SystemInfoItem("Interface", "tun0")
 
@@ -121,25 +116,6 @@ fun SettingsScreen() {
 fun SystemInfoItem(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = Color.Gray, fontSize = 12.sp); Text(value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-fun ConfigInputRow(label: String, value: String, onValueChange: (String) -> Unit, onAdd: () -> Unit) {
-    OutlinedTextField(
-        value = value, onValueChange = onValueChange, label = { Text(label, color = Color.Gray, fontSize = 11.sp) },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color(0xFF00FFA3), unfocusedBorderColor = Color(0xFF161B22), focusedContainerColor = Color(0xFF0D1117), unfocusedContainerColor = Color(0xFF0D1117)),
-        trailingIcon = { IconButton(onClick = onAdd) { Icon(Icons.Default.AddCircle, contentDescription = null, tint = Color(0xFF00FFA3)) } },
-        shape = RoundedCornerShape(8.dp), singleLine = true
-    )
-}
-
-@Composable
-fun ConfigListItem(text: String, onDelete: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text, color = Color.LightGray, fontSize = 13.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-        Icon(Icons.Default.Close, contentDescription = null, tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(16.dp).clickable { onDelete() })
     }
 }
 

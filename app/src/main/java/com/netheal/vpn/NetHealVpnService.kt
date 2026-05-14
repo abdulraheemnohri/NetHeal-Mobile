@@ -2,9 +2,11 @@ package com.netheal.vpn
 
 import android.app.Notification
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.netheal.MainActivity
@@ -23,6 +25,7 @@ class NetHealVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var thread: Thread? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO)
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -31,25 +34,33 @@ class NetHealVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
-        Log.d("NetHealVpn", "Service starting...")
+        acquireWakeLock()
+        Log.d("NetHealVpn", "Service starting with WakeLock...")
 
-        val builder = Builder()
-        builder.setSession("NetHealVpn")
-        builder.addAddress("10.0.0.2", 24)
-        builder.addRoute("0.0.0.0", 0)
-        builder.setMtu(1500)
-        builder.addAddress("fd00::2", 128)
-        builder.addRoute("::", 0)
-
-        vpnInterface = builder.establish()
-
-        if (vpnInterface != null) {
-            startForeground(1, createNotification("Firewall Protection Active"))
-            thread = Thread { runVpnLoop(vpnInterface!!) }
-            thread?.start()
-        }
-
+        setupVpn()
         return START_STICKY
+    }
+
+    private fun setupVpn() {
+        try {
+            val builder = Builder()
+            builder.setSession("NetHealVpn")
+            builder.addAddress("10.0.0.2", 24)
+            builder.addRoute("0.0.0.0", 0)
+            builder.setMtu(1500)
+            builder.addAddress("fd00::2", 128)
+            builder.addRoute("::", 0)
+
+            vpnInterface = builder.establish()
+
+            if (vpnInterface != null) {
+                startForeground(1, createNotification("Firewall Protection Active"))
+                thread = Thread { runVpnLoop(vpnInterface!!) }
+                thread?.start()
+            }
+        } catch (e: Exception) {
+            Log.e("NetHealVpn", "Establish failed", e)
+        }
     }
 
     private fun runVpnLoop(descriptor: ParcelFileDescriptor) {
@@ -80,19 +91,26 @@ class NetHealVpnService : VpnService() {
             Log.e("NetHealVpn", "VPN Loop error", e)
             RustBridge.heal()
         } finally {
-            try {
-                descriptor.close()
-                inputStream.close()
-                outputStream.close()
-            } catch (e: Exception) {}
+            cleanup()
         }
+    }
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NetHeal::VpnWakeLock")
+        wakeLock?.acquire()
+    }
+
+    private fun cleanup() {
+        try {
+            vpnInterface?.close()
+            wakeLock?.let { if (it.isHeld) it.release() }
+        } catch (e: Exception) {}
     }
 
     private fun stopVpn() {
         thread?.interrupt()
-        try {
-            vpnInterface?.close()
-        } catch (e: Exception) {}
+        cleanup()
         vpnInterface = null
         stopForeground(true)
         stopSelf()
