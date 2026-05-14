@@ -9,6 +9,7 @@ object RustBridge {
     external fun setSecurityLevel(level: Byte)
     external fun setAppRule(appId: String, blocked: Boolean)
     external fun getBlockedCount(): Long
+    external fun getScannedCount(): Long
     external fun getSystemHealth(): Int
     external fun addWhitelist(domain: String)
     external fun removeWhitelist(domain: String)

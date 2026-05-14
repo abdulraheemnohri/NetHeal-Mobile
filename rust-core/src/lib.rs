@@ -103,6 +103,15 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getBlockedCount(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_getScannedCount(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jlong {
+    let engine = ENGINE.lock().unwrap();
+    engine.get_scanned_count() as jlong
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_getSystemHealth(
     _env: JNIEnv,
     _class: JClass,

@@ -1,79 +1,37 @@
-# 🛠️ NetHeal Mobile - Build Setup Guide
+# 🛠️ NetHeal Mobile - Final Build Setup
 
-This guide explains how to set up your environment to build and run NetHeal Mobile.
+NetHeal Mobile is a high-performance Android security suite. Follow these steps to build the project from source.
 
----
+## 1. Environment Setup
 
-## 1. Prerequisites
-
-### Rust & NDK
 - **Rust:** Install via [rustup](https://rustup.rs/).
-- **Android NDK:** Install via Android Studio SDK Manager (Version 25+ recommended).
-- **Cargo NDK:** Install the helper tool:
-  ```bash
-  cargo install cargo-ndk
-  ```
-- **Rust Targets:** Add the Android targets:
-  ```bash
-  rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-  ```
+- **Cargo NDK:** \`cargo install cargo-ndk\`
+- **Android Targets:** \`rustup target add aarch64-linux-android armv7-linux-androideabi\`
+- **Java:** JDK 17 required.
 
-### Android Studio
-- **Version:** Flamingo (2022.2.1) or newer.
-- **Java:** JDK 17+ (usually bundled with Android Studio).
+## 2. Compile Security Engine (Rust)
 
----
+Navigate to the \`rust-core\` directory and build for your target architecture:
 
-## 2. Building the Rust Core
+\`\`\`bash
+cd rust-core
+# For 64-bit ARM (Physical devices)
+cargo ndk -t arm64-v8a build --release
+# For 32-bit ARM
+cargo ndk -t armeabi-v7a build --release
+\`\`\`
 
-The Rust core must be compiled into shared libraries (`.so`) that Android can load.
+The libraries will be generated in \`rust-core/target/<abi>/release/libnetheal_core.so\`.
 
-1. Navigate to the Rust directory:
-   ```bash
-   cd rust-core
-   ```
+## 3. Configure Android App
 
-2. Build for specific ABIs (e.g., 64-bit ARM):
-   ```bash
-   cargo ndk -t arm64-v8a build --release
-   ```
+1. Copy the compiled \`.so\` files to \`app/src/main/jniLibs/<abi>/\` and rename them to \`libnetheal.so\`.
+2. Open the project in **Android Studio**.
+3. Perform a **Gradle Sync**.
 
-3. Copy the output to the Android project:
-   The compiled library will be at `target/aarch64-linux-android/release/libnetheal_core.so`.
-   Copy it to `app/src/main/jniLibs/arm64-v8a/libnetheal.so`.
+## 4. CI/CD (Optional)
 
-   *Note: Repeat for other architectures (v7a, x86) if deploying to physical devices or emulators.*
+Push your changes to the \`main\` branch on GitHub. The included workflow (\`.github/workflows/android.yml\`) will automatically build both the Rust core and the Android APK, providing a downloadable artifact.
 
 ---
-
-## 3. Building the Android App
-
-1. Open the project root in **Android Studio**.
-2. Wait for Gradle sync to finish.
-3. Ensure the `jniLibs` folder contains the compiled Rust libraries from Step 2.
-4. Click **Run** to deploy to your device or emulator.
-
----
-
-## 4. Troubleshooting
-
-### "Library not found" Error
-Ensure the file name in `System.loadLibrary("netheal")` matches the filename in `jniLibs` (without the `lib` prefix and `.so` suffix).
-
-### VPN Permission Denied
-When you first click "Enable Protection", Android will show a system dialog. You **must** accept this for the VPNService to start.
-
-### NDK Not Found
-Specify your NDK path in `local.properties`:
-```properties
-ndk.dir=/path/to/your/ndk
-```
-
----
-
-## 5. Development Workflow
-
-Whenever you change Rust code:
-1. Rebuild with `cargo ndk`.
-2. Copy the new `.so` to `jniLibs`.
-3. Re-run the Android app.
+*NetHeal Mobile - Ultimate Autonomous Security*
