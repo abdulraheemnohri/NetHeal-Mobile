@@ -66,6 +66,10 @@ impl Engine {
         self.firewall.get_stats().1
     }
 
+    pub fn get_scanned_count(&self) -> u64 {
+        self.firewall.get_stats().0
+    }
+
     pub fn check_health(&self) -> u8 {
         100
     }

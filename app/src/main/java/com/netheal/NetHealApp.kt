@@ -8,9 +8,12 @@ import android.os.Build
 import androidx.room.Room
 import com.netheal.bridge.RustBridge
 import com.netheal.data.AppDatabase
+import com.netheal.data.UsageStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class NetHealApp : Application() {
     companion object {
@@ -27,33 +30,47 @@ class NetHealApp : Application() {
 
         createNotificationChannel()
 
-        // Restore engine state from DB/Prefs
+        val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+
+        // Restore engine state and background management
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Restore app rules
-                val rules = database.netHealDao().getAllRules()
-                rules.forEach { rule ->
-                    RustBridge.setAppRule(rule.appId, rule.isBlocked)
-                }
+                restoreEngineState()
 
-                // Restore whitelist
-                database.netHealDao().getWhitelist().forEach { entry ->
-                    RustBridge.addWhitelist(entry.domain)
-                }
+                // Management loop
+                while (true) {
+                    val today = LocalDate.now().toString()
+                    val scanned = RustBridge.getScannedCount()
+                    val blocked = RustBridge.getBlockedCount()
+                    database.netHealDao().updateStats(UsageStats(today, scanned, blocked))
 
-                // Restore blacklist
-                database.netHealDao().getBlacklist().forEach { entry ->
-                    RustBridge.addBlacklist(entry.target)
-                }
+                    // Auto-cleanup logs if enabled (default 7 days)
+                    if (prefs.getBoolean("auto_cleanup", true)) {
+                        val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+                        database.netHealDao().deleteLogsOlderThan(sevenDaysAgo)
+                    }
 
-                // Restore security level
-                val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-                val isMilitary = prefs.getBoolean("military_mode", false)
-                RustBridge.setSecurityLevel(if (isMilitary) 1.toByte() else 0.toByte())
+                    delay(60000) // Every minute
+                }
             } catch (e: Exception) {
                 // Initial launch or error
             }
         }
+    }
+
+    private suspend fun restoreEngineState() {
+        database.netHealDao().getAllRules().forEach { rule ->
+            RustBridge.setAppRule(rule.appId, rule.isBlocked)
+        }
+        database.netHealDao().getWhitelist().forEach { entry ->
+            RustBridge.addWhitelist(entry.domain)
+        }
+        database.netHealDao().getBlacklist().forEach { entry ->
+            RustBridge.addBlacklist(entry.target)
+        }
+        val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+        val isMilitary = prefs.getBoolean("military_mode", false)
+        RustBridge.setSecurityLevel(if (isMilitary) 1.toByte() else 0.toByte())
     }
 
     private fun createNotificationChannel() {

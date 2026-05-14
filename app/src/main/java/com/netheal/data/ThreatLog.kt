@@ -27,6 +27,13 @@ data class BlacklistEntry(
     @PrimaryKey val target: String
 )
 
+@Entity(tableName = "usage_stats")
+data class UsageStats(
+    @PrimaryKey val day: String,
+    val totalScanned: Long,
+    val totalBlocked: Long
+)
+
 @Dao
 interface NetHealDao {
     @Query("SELECT * FROM threat_logs ORDER BY timestamp DESC")
@@ -35,6 +42,8 @@ interface NetHealDao {
     suspend fun insertLog(log: ThreatLog)
     @Query("DELETE FROM threat_logs")
     suspend fun deleteAllLogs()
+    @Query("DELETE FROM threat_logs WHERE timestamp < :timestamp")
+    suspend fun deleteLogsOlderThan(timestamp: Long)
 
     @Query("SELECT * FROM firewall_rules")
     suspend fun getAllRules(): List<FirewallRule>
@@ -56,9 +65,14 @@ interface NetHealDao {
     suspend fun addToBlacklist(entry: BlacklistEntry)
     @Delete
     suspend fun removeFromBlacklist(entry: BlacklistEntry)
+
+    @Query("SELECT * FROM usage_stats WHERE day = :day")
+    suspend fun getStatsForDay(day: String): UsageStats?
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateStats(stats: UsageStats)
 }
 
-@Database(entities = [ThreatLog::class, FirewallRule::class, WhitelistEntry::class, BlacklistEntry::class], version = 4)
+@Database(entities = [ThreatLog::class, FirewallRule::class, WhitelistEntry::class, BlacklistEntry::class, UsageStats::class], version = 6)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }
