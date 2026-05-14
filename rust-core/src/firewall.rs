@@ -3,7 +3,10 @@ use std::collections::HashSet;
 pub struct Firewall {
     blocked_domains: HashSet<String>,
     blocked_ips: HashSet<String>,
+    whitelisted_domains: HashSet<String>,
     protected_apps: HashSet<String>,
+    total_scanned: u64,
+    total_blocked: u64,
 }
 
 impl Firewall {
@@ -11,16 +14,45 @@ impl Firewall {
         Firewall {
             blocked_domains: HashSet::new(),
             blocked_ips: HashSet::new(),
+            whitelisted_domains: HashSet::new(),
             protected_apps: HashSet::new(),
+            total_scanned: 0,
+            total_blocked: 0,
         }
     }
 
-    pub fn analyze(&mut self, domain: &str, requests: u32) -> bool {
-        if requests > 500 {
-            self.block_domain(domain);
+    pub fn analyze_connection(&mut self, target: &str, is_ip: bool, requests: u32, app_id: Option<&str>) -> bool {
+        self.total_scanned += 1;
+
+        if self.whitelisted_domains.contains(target) {
+            return true;
+        }
+
+        if let Some(id) = app_id {
+            if self.protected_apps.contains(id) {
+                self.total_blocked += 1;
+                return false;
+            }
+        }
+
+        if requests > 1000 {
+            if is_ip { self.block_ip(target); } else { self.block_domain(target); }
+            self.total_blocked += 1;
             return false;
         }
-        !self.blocked_domains.contains(domain)
+
+        let is_blacklisted = if is_ip {
+            self.blocked_ips.contains(target)
+        } else {
+            self.blocked_domains.contains(target)
+        };
+
+        if is_blacklisted {
+            self.total_blocked += 1;
+            false
+        } else {
+            true
+        }
     }
 
     pub fn block_domain(&mut self, domain: &str) {
@@ -31,8 +63,8 @@ impl Firewall {
         self.blocked_ips.insert(ip.to_string());
     }
 
-    pub fn is_ip_blocked(&self, ip: &str) -> bool {
-        self.blocked_ips.contains(ip)
+    pub fn add_to_whitelist(&mut self, domain: &str) {
+        self.whitelisted_domains.insert(domain.to_string());
     }
 
     pub fn set_app_protection(&mut self, app_id: &str, enabled: bool) {
@@ -43,8 +75,13 @@ impl Firewall {
         }
     }
 
-    pub fn is_app_protected(&self, app_id: &str) -> bool {
-        self.protected_apps.contains(app_id)
+    pub fn get_stats(&self) -> (u64, u64) {
+        (self.total_scanned, self.total_blocked)
+    }
+
+    pub fn reset_rules(&mut self) {
+        self.blocked_domains.clear();
+        self.blocked_ips.clear();
     }
 }
 
@@ -53,18 +90,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_firewall_domain() {
+    fn test_whitelist() {
         let mut fw = Firewall::new();
-        fw.block_domain("malware.com");
-        assert!(!fw.analyze("malware.com", 10));
+        fw.block_domain("ads.com");
+        assert!(!fw.analyze_connection("ads.com", false, 10, None));
+        fw.add_to_whitelist("ads.com");
+        assert!(fw.analyze_connection("ads.com", false, 10, None));
     }
 
     #[test]
     fn test_app_protection() {
         let mut fw = Firewall::new();
-        fw.set_app_protection("com.chrome", true);
-        assert!(fw.is_app_protected("com.chrome"));
-        fw.set_app_protection("com.chrome", false);
-        assert!(!fw.is_app_protected("com.chrome"));
+        fw.set_app_protection("com.app", true);
+        assert!(!fw.analyze_connection("google.com", false, 10, Some("com.app")));
+        assert!(fw.analyze_connection("google.com", false, 10, Some("com.other")));
     }
 }

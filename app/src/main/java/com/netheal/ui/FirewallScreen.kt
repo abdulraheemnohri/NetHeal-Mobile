@@ -1,5 +1,7 @@
 package com.netheal.ui
 
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,26 +15,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
+import com.netheal.data.FirewallRule
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FirewallScreen(onBack: () -> Unit) {
-    val apps = listOf(
-        "com.android.chrome" to "Chrome",
-        "com.google.android.youtube" to "YouTube",
-        "com.netheal" to "NetHeal System",
-        "com.social.app" to "SocialApp",
-        "com.game.x" to "GameX"
-    )
+    val context = LocalContext.current
+    var apps by remember { mutableStateOf(listOf<Pair<String, String>>()) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            val installedApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            apps = installedApps.filter {
+                (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0
+            }.map {
+                it.packageName to pm.getApplicationLabel(it).toString()
+            }.sortedBy { it.second }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Firewall Rules", color = Color.White) },
+                title = { Text("App Control", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
@@ -44,13 +60,19 @@ fun FirewallScreen(onBack: () -> Unit) {
         containerColor = Color(0xFF05070A)
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(20.dp)) {
-            Text("Per-App Internet Control", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("RESTRICT APP ACCESS", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(apps) { (appId, appName) ->
-                    AppRuleItem(appId, appName)
+            if (apps.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF00FFA3))
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(apps) { (packageName, label) ->
+                        AppRuleItem(packageName, label)
+                    }
                 }
             }
         }
@@ -60,6 +82,11 @@ fun FirewallScreen(onBack: () -> Unit) {
 @Composable
 fun AppRuleItem(appId: String, appName: String) {
     var isBlocked by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(appId) {
+        isBlocked = NetHealApp.database.netHealDao().isAppBlocked(appId) ?: false
+    }
 
     Row(
         modifier = Modifier
@@ -70,8 +97,8 @@ fun AppRuleItem(appId: String, appName: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             Text(appId, color = Color.Gray, fontSize = 10.sp)
         }
 
@@ -80,10 +107,15 @@ fun AppRuleItem(appId: String, appName: String) {
             onCheckedChange = {
                 isBlocked = !it
                 RustBridge.setAppRule(appId, isBlocked)
+                scope.launch {
+                    NetHealApp.database.netHealDao().saveRule(FirewallRule(appId, isBlocked))
+                }
             },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color(0xFF00FFA3),
-                uncheckedThumbColor = Color.Red
+                checkedTrackColor = Color(0xFF00FFA3).copy(alpha = 0.5f),
+                uncheckedThumbColor = Color.Red,
+                uncheckedTrackColor = Color.Red.copy(alpha = 0.5f)
             )
         )
     }

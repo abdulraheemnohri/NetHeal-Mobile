@@ -15,15 +15,14 @@ import com.netheal.data.ThreatLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.nio.ByteBuffer
+import java.util.Random
 
 class NetHealVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var thread: Thread? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO)
+    private val random = Random()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("NetHealVpn", "Service starting...")
@@ -47,35 +46,36 @@ class NetHealVpnService : VpnService() {
     private fun monitorTraffic(descriptor: ParcelFileDescriptor) {
         try {
             while (!Thread.interrupted()) {
-                // Simulate domain analysis
-                val simulatedDomain = "malicious-site-v2.net"
-                val requests = 300
-                val burst = 18.0f
+                // Simulation of traffic analysis
+                val targets = listOf("api.tracker-network.com", "185.122.1.5", "telemetry.os.android", "ads.social-service.io", "legit-site.com")
+                val target = targets[random.nextInt(targets.size)]
+                val isIp = target.first().isDigit()
 
-                val isSafe = RustBridge.analyze(simulatedDomain, requests, burst)
+                // In a real implementation, we would extract the app context here
+                val result = RustBridge.analyze(target, isIp, random.nextInt(400), random.nextFloat() * 10)
 
-                if (!isSafe) {
-                    Log.w("NetHealVpn", "🚫 Blocked connection to $simulatedDomain")
+                if (result < 0) { // Blocked
+                    val score = -result
+                    Log.w("NetHealVpn", "🚫 Blocked connection to $target | Risk: $score")
                     serviceScope.launch {
-                        NetHealApp.database.threatLogDao().insertLog(
-                            ThreatLog(domain = simulatedDomain, riskScore = 100, action = "BLOCKED")
+                        NetHealApp.database.netHealDao().insertLog(
+                            ThreatLog(domain = target, riskScore = score, action = "BLOCKED")
                         )
                     }
-                    showThreatNotification(simulatedDomain)
+                    if (score > 90) showThreatNotification(target)
                 }
 
-                // Simulate IP block check
-                val simulatedIp = "185.244.25.1"
-                if (RustBridge.isIpBlocked(simulatedIp)) {
-                     Log.w("NetHealVpn", "🚫 Blocked blacklisted IP: $simulatedIp")
-                }
-
-                Thread.sleep(15000)
+                Thread.sleep(10000)
             }
         } catch (e: Exception) {
+            Log.e("NetHealVpn", "Traffic monitoring interrupted", e)
             RustBridge.heal()
         } finally {
-            descriptor.close()
+            try {
+                descriptor.close()
+            } catch (e: Exception) {
+                // Ignore
+            }
         }
     }
 
@@ -88,6 +88,7 @@ class NetHealVpnService : VpnService() {
             .setContentTitle("NetHeal Mobile")
             .setContentText(content)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
     }
@@ -95,12 +96,16 @@ class NetHealVpnService : VpnService() {
     private fun showThreatNotification(domain: String) {
         val notification = NotificationCompat.Builder(this, NetHealApp.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle("Threat Blocked")
-            .setContentText("Access to $domain was restricted.")
+            .setContentTitle("Critical Threat Blocked")
+            .setContentText("Automatic block: $domain")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
-        NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), notification)
+        try {
+            NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), notification)
+        } catch (e: SecurityException) {
+            Log.e("NetHealVpn", "Notification permission missing")
+        }
     }
 
     override fun onDestroy() {
