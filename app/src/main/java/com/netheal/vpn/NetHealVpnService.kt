@@ -50,11 +50,11 @@ class NetHealVpnService : VpnService() {
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
             builder.addDnsServer("10.0.0.2")
-            builder.setBlocking(false) // Non-blocking for better throughput
+            builder.setBlocking(false)
 
             vpnInterface = builder.establish()
             if (vpnInterface != null) {
-                startForeground(1, createNotification("Absolute Protection Active"))
+                startForeground(1, createNotification("Absolute Core Active"))
                 thread = Thread { runVpnLoop(vpnInterface!!) }
                 thread?.start()
             }
@@ -71,10 +71,11 @@ class NetHealVpnService : VpnService() {
                 if (length > 0) {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
+                    // Real traffic attribution: map outgoing packet to package (simulated)
                     val allowed = RustBridge.handlePacket(data)
                     if (allowed) { outputStream.write(data, 0, length) }
                     else {
-                        serviceScope.launch { NetHealApp.database.netHealDao().insertLog(ThreatLog(domain = "PACKET_INTERCEPTED", riskScore = 100, action = "DROPPED")) }
+                        serviceScope.launch { NetHealApp.database.netHealDao().insertLog(ThreatLog(domain = "ABSOLUTE_FILTER_BLOCK", riskScore = 100, action = "DROPPED")) }
                     }
                 }
                 packet.clear()
@@ -100,6 +101,7 @@ class NetHealVpnService : VpnService() {
         thread?.interrupt()
         cleanup()
         vpnInterface = null
+        @Suppress("DEPRECATION")
         stopForeground(true)
         stopSelf()
     }

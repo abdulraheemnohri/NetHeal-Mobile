@@ -18,10 +18,7 @@ impl Engine {
     }
 
     pub fn handle_packet(&mut self, data: &[u8], app_id: Option<&str>) -> bool {
-        if self.security_level == 4 { // Kill Switch
-            self.firewall.force_block_stat();
-            return false;
-        }
+        if self.security_level == 4 { self.firewall.force_block_stat(); return false; }
         if let Some(info) = parse_v4(data) {
             let mut domain = None;
             if info.protocol == 17 { domain = parse_dns_query(&info.payload); }
