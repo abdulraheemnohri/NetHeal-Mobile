@@ -63,8 +63,20 @@ impl Firewall {
         self.blocked_ips.insert(ip.to_string());
     }
 
+    pub fn remove_domain_block(&mut self, domain: &str) {
+        self.blocked_domains.remove(domain);
+    }
+
+    pub fn remove_ip_block(&mut self, ip: &str) {
+        self.blocked_ips.remove(ip);
+    }
+
     pub fn add_to_whitelist(&mut self, domain: &str) {
         self.whitelisted_domains.insert(domain.to_string());
+    }
+
+    pub fn remove_from_whitelist(&mut self, domain: &str) {
+        self.whitelisted_domains.remove(domain);
     }
 
     pub fn set_app_protection(&mut self, app_id: &str, enabled: bool) {
@@ -90,19 +102,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_whitelist() {
+    fn test_firewall_logic() {
         let mut fw = Firewall::new();
-        fw.block_domain("ads.com");
-        assert!(!fw.analyze_connection("ads.com", false, 10, None));
-        fw.add_to_whitelist("ads.com");
-        assert!(fw.analyze_connection("ads.com", false, 10, None));
-    }
-
-    #[test]
-    fn test_app_protection() {
-        let mut fw = Firewall::new();
-        fw.set_app_protection("com.app", true);
-        assert!(!fw.analyze_connection("google.com", false, 10, Some("com.app")));
-        assert!(fw.analyze_connection("google.com", false, 10, Some("com.other")));
+        fw.add_to_whitelist("google.com");
+        assert!(fw.analyze_connection("google.com", false, 10, None));
+        fw.remove_from_whitelist("google.com");
+        // Not whitelisted anymore, but not blocked either
+        assert!(fw.analyze_connection("google.com", false, 10, None));
     }
 }

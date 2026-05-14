@@ -39,6 +39,17 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_addWhitelist(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeWhitelist(
+    mut env: JNIEnv,
+    _class: JClass,
+    domain: JString,
+) {
+    let domain_str: String = env.get_string(&domain).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.remove_whitelist(&domain_str);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_addBlacklist(
     mut env: JNIEnv,
     _class: JClass,
@@ -47,6 +58,17 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_addBlacklist(
     let target_str: String = env.get_string(&target).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
     engine.add_blacklist(&target_str);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeBlacklist(
+    mut env: JNIEnv,
+    _class: JClass,
+    target: JString,
+) {
+    let target_str: String = env.get_string(&target).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.remove_blacklist(&target_str);
 }
 
 #[no_mangle]
