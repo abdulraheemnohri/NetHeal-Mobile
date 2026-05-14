@@ -33,10 +33,11 @@ class NetHealVpnService : VpnService() {
             stopVpn()
             return START_NOT_STICKY
         }
-
         acquireWakeLock()
-        Log.d("NetHealVpn", "Service starting with WakeLock...")
-
+        val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+        val dns = prefs.getString("upstream_dns", "Cloudflare") ?: "Cloudflare"
+        val dnsIp = if (dns == "Cloudflare") "1.1.1.1" else if (dns == "AdGuard") "94.140.14.14" else "8.8.8.8"
+        RustBridge.setUpstreamDns(dnsIp)
         setupVpn()
         return START_STICKY
     }
@@ -48,26 +49,22 @@ class NetHealVpnService : VpnService() {
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
-            builder.addAddress("fd00::2", 128)
-            builder.addRoute("::", 0)
+            builder.addDnsServer("10.0.0.2")
+            builder.setBlocking(false) // Non-blocking for better throughput
 
             vpnInterface = builder.establish()
-
             if (vpnInterface != null) {
-                startForeground(1, createNotification("Firewall Protection Active"))
+                startForeground(1, createNotification("Absolute Protection Active"))
                 thread = Thread { runVpnLoop(vpnInterface!!) }
                 thread?.start()
             }
-        } catch (e: Exception) {
-            Log.e("NetHealVpn", "Establish failed", e)
-        }
+        } catch (e: Exception) { Log.e("NetHealVpn", "Establish failed", e) }
     }
 
     private fun runVpnLoop(descriptor: ParcelFileDescriptor) {
         val inputStream = FileInputStream(descriptor.fileDescriptor)
         val outputStream = FileOutputStream(descriptor.fileDescriptor)
         val packet = ByteBuffer.allocate(32768)
-
         try {
             while (!Thread.interrupted()) {
                 val length = inputStream.read(packet.array())
@@ -75,24 +72,15 @@ class NetHealVpnService : VpnService() {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
                     val allowed = RustBridge.handlePacket(data)
-                    if (allowed) {
-                        outputStream.write(data, 0, length)
-                    } else {
-                        serviceScope.launch {
-                            NetHealApp.database.netHealDao().insertLog(
-                                ThreatLog(domain = "PACKET_DROPPED", riskScore = 100, action = "BLOCKED")
-                            )
-                        }
+                    if (allowed) { outputStream.write(data, 0, length) }
+                    else {
+                        serviceScope.launch { NetHealApp.database.netHealDao().insertLog(ThreatLog(domain = "PACKET_INTERCEPTED", riskScore = 100, action = "DROPPED")) }
                     }
                 }
                 packet.clear()
             }
-        } catch (e: Exception) {
-            Log.e("NetHealVpn", "VPN Loop error", e)
-            RustBridge.heal()
-        } finally {
-            cleanup()
-        }
+        } catch (e: Exception) { Log.e("NetHealVpn", "Loop error", e); RustBridge.heal() }
+        finally { cleanup() }
     }
 
     private fun acquireWakeLock() {
@@ -119,19 +107,16 @@ class NetHealVpnService : VpnService() {
     private fun createNotification(content: String): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-
         return NotificationCompat.Builder(this, NetHealApp.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("NetHeal Mobile")
+            .setContentTitle("NetHeal Absolute")
             .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
     }
 
-    override fun onDestroy() {
-        stopVpn()
-        super.onDestroy()
-    }
+    override fun onDestroy() { stopVpn(); super.onDestroy() }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-pub enum ThreatType { Normal, Bot, DDoS, DGA }
+pub enum ThreatType { Normal, Bot, DDoS, DGA, Exfiltration }
 
 pub struct ThreatReport {
     pub risk_score: u8,
@@ -18,15 +18,17 @@ pub fn calculate_entropy(s: &str) -> f32 {
     }).sum()
 }
 
-pub fn analyze_threat(request_rate: u32, _burst_ratio: f32, domain: Option<&str>) -> ThreatReport {
+pub fn analyze_threat(_request_rate: u32, _burst_ratio: f32, domain: Option<&str>) -> ThreatReport {
     let mut score: u8 = 0;
     let mut t_type = ThreatType::Normal;
-    if request_rate > 500 { score += 80; t_type = ThreatType::DDoS; }
     if let Some(d) = domain {
         let entropy = calculate_entropy(d);
         if entropy > 4.1 && d.len() > 10 {
             score = 85;
             t_type = ThreatType::DGA;
+        } else if d.contains("analytics") || d.contains("tracker") || d.contains("telemetry") {
+            score = 65;
+            t_type = ThreatType::Exfiltration;
         }
     }
     ThreatReport { risk_score: score.min(100), threat_type: t_type }

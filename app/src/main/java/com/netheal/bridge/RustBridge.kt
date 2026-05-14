@@ -18,6 +18,7 @@ object RustBridge {
     external fun removeBlacklist(valStr: String, isDomain: Boolean)
     external fun heal()
     external fun resetStats()
+    external fun setUpstreamDns(dns: String)
     external fun getAnalytics(): ByteArray
     external fun runDiagnostics(): ByteArray
 }

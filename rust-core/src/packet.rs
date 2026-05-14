@@ -18,7 +18,7 @@ pub fn parse_v4(data: &[u8]) -> Option<PacketInfo> {
 }
 
 pub fn parse_dns_query(payload: &[u8]) -> Option<String> {
-    // Basic UDP check
+    // Assuming payload is the IP payload (starts with UDP header)
     if payload.len() < 20 { return None; }
     let dns_data = &payload[8..];
     if dns_data.len() < 12 { return None; }
@@ -38,24 +38,35 @@ pub fn parse_dns_query(payload: &[u8]) -> Option<String> {
 }
 
 pub fn parse_sni(payload: &[u8]) -> Option<String> {
-    // Minimal TLS SNI parser (assumes TCP payload starts with TLS handshake)
-    if payload.len() < 20 { return None; }
-    // Skip TCP header (assuming payload passed is only the TCP data)
-    // In our loop, payload from parse_v4 starts with the L4 header.
-    // TCP header is at least 20 bytes.
+    if payload.len() < 40 { return None; }
     let tcp_off = ((payload[12] & 0xF0) >> 4) as usize * 4;
-    if payload.len() < tcp_off + 5 { return None; }
-    let data = &payload[tcp_off..];
+    if payload.len() < tcp_off + 10 { return None; }
+    let tls_data = &payload[tcp_off..];
 
-    // TLS Content Type 22 (Handshake), Version 3.x
-    if data[0] != 0x16 { return None; }
+    // TLS Record Layer: 0x16 (Handshake)
+    if tls_data[0] != 0x16 { return None; }
 
-    // Minimal parsing... search for "extension_server_name"
-    // This is a rough heuristic search for the demo
-    for i in 0..data.len().saturating_sub(10) {
-        if &data[i..i+2] == &[0x00, 0x00] && data[i+2] == 0x00 { // Type 0 (SNI)
-             // simplified check
+    // Handshake Type: 0x01 (Client Hello)
+    if tls_data.len() < 6 || tls_data[5] != 0x01 { return None; }
+
+    // Search for Server Name Indication (0x00 0x00)
+    let mut i = 43; // Skip randoms, session id etc
+    if tls_data.len() < i + 10 { return None; }
+
+    while i < tls_data.len().saturating_sub(5) {
+        if tls_data[i] == 0x00 && tls_data[i+1] == 0x00 { // SNI tag
+            let ext_len = ((tls_data[i+2] as u16) << 8) | tls_data[i+3] as u16;
+            if tls_data.len() < i + 4 + ext_len as usize { return None; }
+            // Inside SNI extension: 0x00 (hostname), len, val
+            let sni_data = &tls_data[i+4..i+4+ext_len as usize];
+            if sni_data.len() > 5 && sni_data[2] == 0x00 {
+                let name_len = ((sni_data[3] as u16) << 8) | sni_data[4] as u16;
+                if sni_data.len() >= 5 + name_len as usize {
+                    return Some(String::from_utf8_lossy(&sni_data[5..5+name_len as usize]).to_string());
+                }
+            }
         }
+        i += 1;
     }
-    None // TLS SNI parsing is complex for a 1-shot script, sticking to DNS
+    None
 }
