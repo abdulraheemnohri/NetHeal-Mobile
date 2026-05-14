@@ -1,5 +1,6 @@
 package com.netheal.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Context
 import android.os.PowerManager
 import android.widget.Toast
