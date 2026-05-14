@@ -43,11 +43,11 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setAppRule(
     mut env: JNIEnv,
     _class: JClass,
     app_id: JString,
-    blocked: jboolean,
+    state: jint,
 ) {
     let app_id: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
-    engine.set_app_rule(&app_id, blocked != 0);
+    engine.set_app_rule(&app_id, state as u8);
 }
 
 #[no_mangle]
@@ -147,4 +147,26 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_resetStats(
 ) {
     let mut engine = ENGINE.lock().unwrap();
     engine.reset_stats();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAnalytics(
+    env: JNIEnv,
+    _class: JClass,
+) -> jbyteArray {
+    let engine = ENGINE.lock().unwrap();
+    let analytics = engine.get_analytics_json();
+    let array = env.byte_array_from_slice(analytics.as_bytes()).unwrap();
+    array.as_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_runDiagnostics(
+    env: JNIEnv,
+    _class: JClass,
+) -> jbyteArray {
+    let engine = ENGINE.lock().unwrap();
+    let diag = engine.run_diagnostics();
+    let array = env.byte_array_from_slice(diag.as_bytes()).unwrap();
+    array.as_raw()
 }

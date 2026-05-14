@@ -6,8 +6,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.room.Room
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.netheal.bridge.RustBridge
 import com.netheal.data.AppDatabase
 import com.netheal.data.UsageStats
@@ -34,35 +32,27 @@ class NetHealApp : Application() {
 
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
 
-        // Restore engine state and background management
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 restoreEngineState()
-
-                // Management loop
                 while (true) {
                     val today = LocalDate.now().toString()
                     val scanned = RustBridge.getScannedCount()
                     val blocked = RustBridge.getBlockedCount()
                     database.netHealDao().updateStats(UsageStats(today, scanned, blocked))
-
-                    // Auto-cleanup logs if enabled (default 7 days)
                     if (prefs.getBoolean("auto_cleanup", true)) {
                         val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
                         database.netHealDao().deleteLogsOlderThan(sevenDaysAgo)
                     }
-
-                    delay(60000) // Every minute
+                    delay(60000)
                 }
-            } catch (e: Exception) {
-                // Initial launch or error
-            }
+            } catch (e: Exception) {}
         }
     }
 
     private suspend fun restoreEngineState() {
         database.netHealDao().getAllRules().forEach { rule ->
-            RustBridge.setAppRule(rule.appId, rule.isBlocked)
+            RustBridge.setAppRule(rule.appId, rule.state)
         }
         database.netHealDao().getWhitelist().forEach { entry ->
             RustBridge.addWhitelist(entry.domain)
@@ -82,13 +72,9 @@ class NetHealApp : Application() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Threat Alerts"
-            val descriptionText = "Notifications for blocked malicious connections"
             val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-            val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = NotificationChannel(CHANNEL_ID, name, importance)
+            val notificationManager: NotificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
