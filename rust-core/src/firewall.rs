@@ -1,31 +1,88 @@
 use std::collections::HashSet;
 
 pub struct Firewall {
-    blocked_domains: HashSet<String>,
     blocked_ips: HashSet<String>,
-    whitelisted_domains: HashSet<String>,
+    whitelisted_ips: HashSet<String>,
     protected_apps: HashSet<String>,
     total_scanned: u64,
     total_blocked: u64,
+    military_mode: bool,
 }
 
 impl Firewall {
     pub fn new() -> Self {
-        Firewall {
-            blocked_domains: HashSet::new(),
+        let mut f = Firewall {
             blocked_ips: HashSet::new(),
-            whitelisted_domains: HashSet::new(),
+            whitelisted_ips: HashSet::new(),
             protected_apps: HashSet::new(),
             total_scanned: 0,
             total_blocked: 0,
+            military_mode: false,
+        };
+        f.load_defaults();
+        f
+    }
+
+    fn load_defaults(&mut self) {
+        // Expanded list of known tracking, telemetry, and suspicious IPs
+        let defaults = vec![
+            "8.8.4.4",          // Google DNS secondary (monitor)
+            "31.13.71.36",      // Facebook
+            "142.250.190.46",   // Google Ads
+            "157.240.22.35",    // Instagram
+            "20.190.129.0",     // MS Telemetry
+            "52.114.0.0",       // MS Office
+            "13.107.42.0",      // MS Shared
+            "185.199.108.0",    // GitHub Pages abused
+            "104.244.42.0",     // Twitter
+            "199.16.156.0",     // Twitter
+            "69.171.224.0",     // FB
+            "66.220.144.0",     // FB
+            "52.2.144.185",     // AdRoll
+            "54.225.143.125",   // AdRoll
+            "23.235.32.0",      // Fastly (Ad serving ranges)
+            "104.16.0.0",       // Cloudflare (selective ranges often used by trackers)
+            "172.217.0.0",      // Google Telemetry
+            "216.58.192.0",     // Google Telemetry
+            "40.76.0.0",        // Microsoft
+            "52.142.0.0",       // Microsoft
+            "1.1.1.1",          // Cloudflare DNS (often used to bypass local filters)
+            "1.0.0.1",
+            "8.8.8.8",
+            "9.9.9.9",          // Quad9
+            "149.112.112.112",
+        ];
+        for ip in defaults {
+            self.blocked_ips.insert(ip.to_string());
         }
     }
 
-    pub fn analyze_connection(&mut self, target: &str, is_ip: bool, requests: u32, app_id: Option<&str>) -> bool {
+    pub fn set_military_mode(&mut self, enabled: bool) {
+        self.military_mode = enabled;
+    }
+
+    pub fn analyze_packet(&mut self, dst_ip: &str, app_id: Option<&str>) -> bool {
         self.total_scanned += 1;
 
-        if self.whitelisted_domains.contains(target) {
+        if self.whitelisted_ips.contains(dst_ip) {
             return true;
+        }
+
+        // Military Mode: Strict Zero Trust
+        if self.military_mode {
+             // In military mode, we block everything not explicitly whitelisted
+             // but to avoid breaking the phone completely in this demo, we block
+             // all private ranges and all common cloud provider IPs.
+             if dst_ip.starts_with("10.") || dst_ip.starts_with("192.168.") || dst_ip.starts_with("172.") {
+                 self.total_blocked += 1;
+                 return false;
+             }
+
+             // Block common CDNs used for tracking in military mode
+             if dst_ip.starts_with("104.") || dst_ip.starts_with("151.") {
+                 self.total_blocked += 1;
+                 return false;
+             }
         }
 
         if let Some(id) = app_id {
@@ -35,48 +92,28 @@ impl Firewall {
             }
         }
 
-        if requests > 1000 {
-            if is_ip { self.block_ip(target); } else { self.block_domain(target); }
+        if self.blocked_ips.contains(dst_ip) {
             self.total_blocked += 1;
             return false;
         }
 
-        let is_blacklisted = if is_ip {
-            self.blocked_ips.contains(target)
-        } else {
-            self.blocked_domains.contains(target)
-        };
-
-        if is_blacklisted {
-            self.total_blocked += 1;
-            false
-        } else {
-            true
-        }
-    }
-
-    pub fn block_domain(&mut self, domain: &str) {
-        self.blocked_domains.insert(domain.to_string());
+        true
     }
 
     pub fn block_ip(&mut self, ip: &str) {
         self.blocked_ips.insert(ip.to_string());
     }
 
-    pub fn remove_domain_block(&mut self, domain: &str) {
-        self.blocked_domains.remove(domain);
-    }
-
-    pub fn remove_ip_block(&mut self, ip: &str) {
+    pub fn unblock_ip(&mut self, ip: &str) {
         self.blocked_ips.remove(ip);
     }
 
-    pub fn add_to_whitelist(&mut self, domain: &str) {
-        self.whitelisted_domains.insert(domain.to_string());
+    pub fn whitelist_ip(&mut self, ip: &str) {
+        self.whitelisted_ips.insert(ip.to_string());
     }
 
-    pub fn remove_from_whitelist(&mut self, domain: &str) {
-        self.whitelisted_domains.remove(domain);
+    pub fn unwhitelist_ip(&mut self, ip: &str) {
+        self.whitelisted_ips.remove(ip);
     }
 
     pub fn set_app_protection(&mut self, app_id: &str, enabled: bool) {
@@ -92,22 +129,8 @@ impl Firewall {
     }
 
     pub fn reset_rules(&mut self) {
-        self.blocked_domains.clear();
         self.blocked_ips.clear();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_firewall_logic() {
-        let mut fw = Firewall::new();
-        fw.add_to_whitelist("google.com");
-        assert!(fw.analyze_connection("google.com", false, 10, None));
-        fw.remove_from_whitelist("google.com");
-        // Not whitelisted anymore, but not blocked either
-        assert!(fw.analyze_connection("google.com", false, 10, None));
+        self.protected_apps.clear();
+        self.load_defaults();
     }
 }

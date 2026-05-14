@@ -77,7 +77,7 @@ fun SettingsScreen() {
         SettingToggle("Military Security", "Strict filtering, zero-bypass mode", highSecurity) {
             highSecurity = it
             prefs.edit().putBoolean("military_mode", it).apply()
-            RustBridge.setSecurityLevel(if (it) 1.toByte() else 0.toByte())
+            RustBridge.setSecurityLevel(if (it) 2 else 0)
         }
         SettingToggle("Start on Boot", "Automatically start VPN at device boot", startOnBoot) {
             startOnBoot = it
