@@ -1,34 +1,3 @@
-package com.netheal.ui
-
-import androidx.compose.animation.*
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.netheal.NetHealApp
-import com.netheal.bridge.RustBridge
-import com.netheal.data.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FirewallScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("ISOLATION", "POLICIES", "LISTS", "WIFI", "INTEL", "LOGS")
     val scope = rememberCoroutineScope()
@@ -40,7 +9,7 @@ fun FirewallScreen() {
     var portRules by remember { mutableStateOf(listOf<PortRule>()) }
     var geoRules by remember { mutableStateOf(listOf<GeoRule>()) }
 
-    fun updateData() {
+    val updateData = {
         scope.launch(Dispatchers.IO) {
             val wl = NetHealApp.database.netHealDao().getWhitelist()
             val bl = NetHealApp.database.netHealDao().getBlacklist()
@@ -60,7 +29,6 @@ fun FirewallScreen() {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF010409)).padding(16.dp)) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
-
         ScrollableTabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
@@ -68,12 +36,10 @@ fun FirewallScreen() {
             edgePadding = 0.dp,
             divider = {},
             indicator = { tabPositions ->
-                if (selectedTab < tabPositions.size) {
-                    TabRowDefaults.Indicator(
-                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = Color(0xFF00FFA3)
-                    )
-                }
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = Color(0xFF00FFA3)
+                )
             }
         ) {
             tabs.forEachIndexed { index, title ->
@@ -84,11 +50,11 @@ fun FirewallScreen() {
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
                 0 -> AppIsolationSection()
-                1 -> CustomRulesSection(customRules, portRules, geoRules, ::updateData)
-                2 -> GlobalListsSection(whitelist, blacklist, ::updateData)
-                3 -> WifiSecuritySection(schedules, ssidRules, ::updateData)
+                1 -> CustomRulesSection(customRules, portRules, geoRules, updateData)
+                2 -> GlobalListsSection(whitelist, blacklist, updateData)
+                3 -> WifiSecuritySection(schedules, ssidRules, updateData)
                 4 -> IntelligenceSection()
-                5 -> LogsScreen()
+                5 -> FirewallLogScreen()
             }
         }
     }
@@ -100,87 +66,102 @@ fun IntelligenceSection() {
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Text("JULES AI INTEL FEED", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("ABSOLUTE OMEGA INTEL FEED", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("DETECTION ENGINE STATUS", color = Color.Gray, fontSize = 9.sp)
-                        Text(if (isSyncing) "AI ANALYZING..." else "JULES ACTIVE", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                    IconButton(onClick = { scope.launch { isSyncing = true; delay(2000); isSyncing = false } }) {
-                        Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF00FFA3))
-                    }
+                    Column { Text("THREAT FEED STATUS", color = Color.Gray, fontSize = 9.sp); Text(if (isSyncing) "SYNCING..." else "UP TO DATE", color = Color.White, fontWeight = FontWeight.Bold) }
+                    IconButton(onClick = { scope.launch { isSyncing = true; delay(3000); isSyncing = false } }) { Icon(Icons.Default.Sync, null, tint = Color(0xFF00FFA3)) }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("DYNAMIC AI FINDINGS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("ACTIVE GLOBAL THREATS", color = Color.Red, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
 
-        IntelItem("MALWARE SIGNATURES", "Generated 3 new C2 block rules", "CRITICAL")
-        IntelItem("ANOMALY DETECTION", "Heuristic engine improved via Jules API", "OPTIMIZED")
-        IntelItem("TRAFFIC ANALYSIS", "Identified high-risk data exfiltration pattern", "WARNING")
+        IntelItem("Log4Shell Variant-B", "Targeting industrial controllers", "HIGH")
+        IntelItem("Mirai Botnet Sync", "Active DDoS cluster in EU", "CRITICAL")
+        IntelItem("Pegasus Zero-Click", "New iOS/Android vulnerability", "URGENT")
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("AI-MANAGED POLICIES", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("COMMUNITY RISK RATINGS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
 
-        AppRiskRow("Suspect App Filter", "RESTRICTED", Color.Yellow)
-        AppRiskRow("Zero-Day Shield", "SHIELDING", Color(0xFF00FFA3))
+        AppRiskItem("TikTok", "Data Exfiltration: High", Color.Red)
+        AppRiskItem("FaceApp", "Biometric Tracking: Moderate", Color.Yellow)
+        AppRiskItem("Temu", "Aggressive Telemetry: High", Color.Red)
+
+        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 
 @Composable
 fun IntelItem(title: String, desc: String, level: String) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(8.dp).background(if (level == "CRITICAL") Color.Red else if (level == "WARNING") Color.Yellow else Color(0xFF00FFA3), CircleShape))
-            Spacer(modifier = Modifier.width(16.dp))
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(4.dp).background(Color.Red, CircleShape))
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Text(desc, color = Color.Gray, fontSize = 10.sp)
             }
-            Text(level, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+            Text(level, color = Color.Red, fontSize = 8.sp, fontWeight = FontWeight.Black)
         }
     }
 }
 
 @Composable
-fun AppRiskRow(name: String, risk: String, color: Color) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = Color.LightGray, fontSize = 13.sp)
-        Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.1f)).border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-            Text(risk, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+fun AppRiskItem(name: String, risk: String, color: Color) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Warning, null, tint = color, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(risk, color = Color.Gray, fontSize = 10.sp)
         }
     }
 }
 
 @Composable
 fun AppIsolationSection() {
-    val apps = listOf("com.android.chrome" to 12, "com.google.android.youtube" to 5, "com.whatsapp" to 0)
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text("ACTIVE APP SURVEILLANCE", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    Column {
+        Text("APP-LEVEL ISOLATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(apps) { (id, risk) -> AppRuleItem(id, id.split(".").last().uppercase(), risk) }
+            item { AppRuleItem("com.android.chrome", "Google Chrome", 82) }
+            item { AppRuleItem("com.facebook.katana", "Facebook", 94) }
+            item { AppRuleItem("com.whatsapp", "WhatsApp", 12) }
+            item { AppRuleItem("com.instagram.android", "Instagram", 88) }
+            item { AppRuleItem("org.mozilla.firefox", "Firefox", 15) }
         }
     }
 }
 
 @Composable
 fun AppRuleItem(appId: String, appName: String, risk: Int) {
-    var state by remember { mutableIntStateOf(0) }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) { Text(appName, color = Color.White, fontWeight = FontWeight.Bold); Text(appId, color = Color.Gray, fontSize = 9.sp) }
-            Row {
-                IconButton(onClick = { state = 0; RustBridge.setAppRule(appId, 0) }) { Icon(Icons.Default.Check, null, tint = if (state == 0) Color(0xFF00FFA3) else Color.DarkGray) }
-                IconButton(onClick = { state = 1; RustBridge.setAppRule(appId, 1) }) { Icon(Icons.Default.Wifi, null, tint = if (state == 1) Color.Cyan else Color.DarkGray) }
-                IconButton(onClick = { state = 2; RustBridge.setAppRule(appId, 2) }) { Icon(Icons.Default.Block, null, tint = if (state == 2) Color.Red else Color.DarkGray) }
+    var rule by remember { mutableStateOf<FirewallRule?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(appId) { rule = NetHealApp.database.netHealDao().getRule(appId) ?: FirewallRule(appId, 0, 0) }
+
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, if (risk > 80) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
+        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (risk > 80) Color.Red else Color.Gray).padding(horizontal = 4.dp, vertical = 2.dp)) {
+                        Text("$risk RISK", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Text(appId, color = Color.Gray, fontSize = 9.sp, maxLines = 1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { val s = if (rule?.state == 1) 0 else 1; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Wifi, contentDescription = null, tint = if (rule?.state == 1) Color.Yellow else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val s = if (rule?.state == 2) 0 else 2; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Block, contentDescription = null, tint = if (rule?.state == 2) Color.Red else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val l = if (rule?.bwLimit == 0L) 100000L else 0L; RustBridge.setAppBwLimit(appId, l); scope.launch { val nr = FirewallRule(appId, rule?.state ?: 0, l); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Speed, contentDescription = null, tint = if ((rule?.bwLimit ?: 0) > 0) Color.Cyan else Color.Gray, modifier = Modifier.size(18.dp)) }
             }
         }
     }
@@ -267,15 +248,15 @@ fun SsidRuleItem(r: SsidRule, onDelete: () -> Unit) {
 @Composable
 fun SsidRuleDialog(onDismiss: () -> Unit, onSave: (SsidRule) -> Unit) {
     var ssid by remember { mutableStateOf("") }
-    var appId by remember { mutableStateOf("") }
+    var appId by remember { mutableStateOf("com.android.chrome") }
     var block by remember { mutableStateOf(true) }
     AlertDialog(onDismissRequest = onDismiss, containerColor = Color(0xFF0D1117), title = { Text("NEW SSID RULE", color = Color.White) }, text = {
         Column {
-            OutlinedTextField(value = ssid, onValueChange = { ssid = it }, label = { Text("SSID Name") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = ssid, onValueChange = { ssid = it }, label = { Text("WiFi SSID") }, modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(value = appId, onValueChange = { appId = it }, label = { Text("App Package ID") }, modifier = Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = block, onCheckedChange = { block = it })
+                Checkbox(checked = block, onCheckedChange = { block = it }, colors = CheckboxDefaults.colors(checkedColor = Color.Red))
                 Text("Block on this network", color = Color.Gray)
             }
         }
@@ -285,19 +266,21 @@ fun SsidRuleDialog(onDismiss: () -> Unit, onSave: (SsidRule) -> Unit) {
 @Composable
 fun CustomRulesSection(rules: List<CustomRule>, portRules: List<PortRule>, geoRules: List<GeoRule>, onUpdate: () -> Unit) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedSubTab, containerColor = Color.Transparent, contentColor = Color(0xFF00FFA3), divider = {}) {
-            Tab(selected = selectedSubTab == 0, onClick = { selectedSubTab = 0 }, text = { Text("PRESETS", fontSize = 9.sp) })
-            Tab(selected = selectedSubTab == 1, onClick = { selectedSubTab = 1 }, text = { Text("L7 PATTERNS", fontSize = 9.sp) })
-            Tab(selected = selectedSubTab == 2, onClick = { selectedSubTab = 2 }, text = { Text("PORTS", fontSize = 9.sp) })
-            Tab(selected = selectedSubTab == 3, onClick = { selectedSubTab = 3 }, text = { Text("GEO", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 0, onClick = { selectedSubTab = 0 }, text = { Text("L7 PATTERNS", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 1, onClick = { selectedSubTab = 1 }, text = { Text("PORTS", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 2, onClick = { selectedSubTab = 2 }, text = { Text("GEO-BLOCK", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 3, onClick = { selectedSubTab = 3 }, text = { Text("PRESETS", fontSize = 9.sp) })
         }
         Spacer(modifier = Modifier.height(16.dp))
+
         when (selectedSubTab) {
-            0 -> PresetCollectionList(onUpdate)
-            1 -> L7PatternList(rules, onUpdate)
-            2 -> PortRuleList(portRules, onUpdate)
-            3 -> GeoBlockList(geoRules, onUpdate)
+            0 -> L7PatternList(rules, onUpdate)
+            1 -> PortRuleList(portRules, onUpdate)
+            2 -> GeoBlockList(geoRules, onUpdate)
+            3 -> PresetCollectionList(onUpdate)
         }
     }
 }
@@ -311,6 +294,7 @@ fun PresetCollectionList(onUpdate: () -> Unit) {
         "Anti-Tracking" to listOf("analytics.", "metrics.", "fb.com", "graph.facebook.com"),
         "Dev-Hardening" to listOf("debug.", "internal.", "localhost")
     )
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         presets.forEach { (name, domains) ->
             Card(modifier = Modifier.fillMaxWidth().clickable {
@@ -337,51 +321,54 @@ fun PresetCollectionList(onUpdate: () -> Unit) {
 
 @Composable
 fun PortRuleList(ports: List<PortRule>, onUpdate: () -> Unit) {
-    var showAddDialog by remember { mutableStateOf(false) }
+    var input by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     Column {
-        Button(onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF00FFA3)); Text("BLOCK PORT", color = Color.White)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Enter Port (e.g. 8080)", color = Color.Gray) },
+            trailingIcon = { IconButton(onClick = {
+                val p = input.toIntOrNull() ?: return@IconButton
+                scope.launch(Dispatchers.IO) {
+                    NetHealApp.database.netHealDao().savePortRule(PortRule(p, true));
+                    RustBridge.addPortBlock(p); withContext(Dispatchers.Main) { onUpdate(); input = "" }
+                }
+            }) { Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF00FFA3)) } }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(ports) { p ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+            items(ports) { port ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117))) {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column { Text("PORT: ${p.port}", color = Color.White, fontWeight = FontWeight.Bold); Text(p.description, color = Color.Gray, fontSize = 9.sp) }
-                        IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deletePortRule(p); RustBridge.removePortBlock(p.port); withContext(Dispatchers.Main) { onUpdate() } } }) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
+                        Text("PORT ${port.port}", color = Color.White, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deletePortRule(port); RustBridge.removePortBlock(port.port); withContext(Dispatchers.Main) { onUpdate() } } }) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
                     }
                 }
             }
         }
     }
-    if (showAddDialog) {
-        var portStr by remember { mutableStateOf("") }
-        var desc by remember { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { showAddDialog = false }, title = { Text("Block Port", color = Color.White) }, text = {
-            Column {
-                OutlinedTextField(value = portStr, onValueChange = { portStr = it }, label = { Text("Port Number") })
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Description") })
-            }
-        }, confirmButton = { TextButton(onClick = {
-            val p = portStr.toIntOrNull() ?: 0
-            scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().savePortRule(PortRule(p, true, desc)); RustBridge.addPortBlock(p); withContext(Dispatchers.Main) { onUpdate(); showAddDialog = false } }
-        }) { Text("BLOCK") } })
-    }
 }
 
 @Composable
 fun GeoBlockList(geo: List<GeoRule>, onUpdate: () -> Unit) {
-    var showAddDialog by remember { mutableStateOf(false) }
+    var input by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     Column {
-        Button(onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) {
-            Icon(Icons.Default.Public, contentDescription = null, tint = Color(0xFF00FFA3)); Text("ADD COUNTRY BLOCK", color = Color.White)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Enter Country ISO (e.g. RU, CN)", color = Color.Gray) },
+            trailingIcon = { IconButton(onClick = {
+                if (input.length != 2) return@IconButton
+                scope.launch(Dispatchers.IO) {
+                    NetHealApp.database.netHealDao().saveGeoRule(GeoRule(input.uppercase(), true));
+                    RustBridge.addGeoBlock(input.uppercase()); withContext(Dispatchers.Main) { onUpdate(); input = "" }
+                }
+            }) { Icon(Icons.Default.Public, contentDescription = null, tint = Color(0xFF00FFA3)) } }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(geo) { g ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117))) {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("COUNTRY: ${g.countryIso}", color = Color.White, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteGeoRule(g); RustBridge.removeGeoBlock(g.countryIso); withContext(Dispatchers.Main) { onUpdate() } } }) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
@@ -389,14 +376,6 @@ fun GeoBlockList(geo: List<GeoRule>, onUpdate: () -> Unit) {
                 }
             }
         }
-    }
-    if (showAddDialog) {
-        var iso by remember { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { showAddDialog = false }, title = { Text("Block Country", color = Color.White) }, text = {
-            OutlinedTextField(value = iso, onValueChange = { iso = it }, label = { Text("ISO Code (e.g. RU, CN)") })
-        }, confirmButton = { TextButton(onClick = {
-            scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().saveGeoRule(GeoRule(iso, true)); RustBridge.addGeoBlock(iso); withContext(Dispatchers.Main) { onUpdate(); showAddDialog = false } }
-        }) { Text("BLOCK") } })
     }
 }
 
@@ -496,4 +475,3 @@ fun CustomRuleItem(rule: CustomRule, onEdit: () -> Unit, onDelete: () -> Unit) {
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) }
         }
     }
-}

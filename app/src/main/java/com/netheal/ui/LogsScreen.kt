@@ -1,6 +1,7 @@
 package com.netheal.ui
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -105,18 +106,13 @@ fun TrafficUsageCard(pkg: String, info: UsageInfo) {
                 Text("${info.packets} PKTS", color = Color.Gray, fontSize = 8.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("↑ ${formatSize(info.sent)}", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Text("↓ ${formatSize(info.recv)}", color = Color(0xFF2196F3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("UP ${formatSize(info.sent)}", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("DOWN ${formatSize(info.recv)}", color = Color(0xFF2196F3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-fun formatSize(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024f)
-    return String.format("%.1f MB", bytes / (1024f * 1024f))
-}
 
 @Composable
 fun LogCard(log: ThreatLog) {
@@ -131,4 +127,3 @@ fun LogCard(log: ThreatLog) {
     }
 }
 
-data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
