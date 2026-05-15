@@ -1,6 +1,20 @@
 use std::collections::HashMap;
 
-pub enum ThreatType { Normal, Bot, DDoS, DGA, Exfiltration }
+#[derive(Debug, Clone, Copy)]
+pub enum ThreatType {
+    Normal,
+    Bot,
+    DDoS,
+    DGA,
+    Exfiltration,
+    IDS,
+    SynFlood,
+    Malformed,
+    CryptoMining,
+    Spyware,
+    Tracking,
+    InsecureHTTP
+}
 
 pub struct ThreatReport {
     pub risk_score: u8,
@@ -18,18 +32,62 @@ pub fn calculate_entropy(s: &str) -> f32 {
     }).sum()
 }
 
-pub fn analyze_threat(_request_rate: u32, _burst_ratio: f32, domain: Option<&str>) -> ThreatReport {
+pub fn analyze_threat(request_rate: u32, burst_ratio: f32, domain: Option<&str>) -> ThreatReport {
     let mut score: u8 = 0;
     let mut t_type = ThreatType::Normal;
+
     if let Some(d) = domain {
         let entropy = calculate_entropy(d);
-        if entropy > 4.1 && d.len() > 10 {
-            score = 85;
+        if entropy > 4.1 && d.len() > 12 {
+            score = 90;
             t_type = ThreatType::DGA;
         } else if d.contains("analytics") || d.contains("tracker") || d.contains("telemetry") {
             score = 65;
-            t_type = ThreatType::Exfiltration;
+            t_type = ThreatType::Tracking;
+        } else if d.contains("pool.") || d.contains("mining") || d.contains("hash") {
+            score = 95;
+            t_type = ThreatType::CryptoMining;
+        } else if d.contains("spy") || d.contains("hook") || d.contains("keylog") {
+            score = 100;
+            t_type = ThreatType::Spyware;
         }
     }
+
+    if request_rate > 500 {
+        score = score.max(85);
+        t_type = ThreatType::DDoS;
+    } else if burst_ratio > 10.0 {
+        score = score.max(75);
+        t_type = ThreatType::Bot;
+    }
+
     ThreatReport { risk_score: score.min(100), threat_type: t_type }
+}
+
+pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
+    if data.len() < 20 { return Some((90, ThreatType::Malformed)); }
+
+    let version = data[0] >> 4;
+    if version != 4 && version != 6 {
+        return Some((95, ThreatType::Malformed));
+    }
+
+    // Detect insecure HTTP (Port 80)
+    // IP Offset 9: Protocol (6=TCP, 17=UDP)
+    // TCP header starts at IHV*4. Dest port is bytes 2-3 of TCP header.
+    let ihl = (data[0] & 0x0F) as usize * 4;
+    if data.len() > ihl + 4 && data[9] == 6 {
+        let d_port = ((data[ihl+2] as u16) << 8) | data[ihl+3] as u16;
+        if d_port == 80 { return Some((40, ThreatType::InsecureHTTP)); }
+    }
+
+    for i in 0..data.len().saturating_sub(4) {
+        if &data[i..i+4] == [0x58, 0x50, 0x33, 0x4F] {
+            return Some((100, ThreatType::IDS));
+        }
+    }
+
+    if data.len() > 1500 { return Some((70, ThreatType::Malformed)); }
+
+    None
 }

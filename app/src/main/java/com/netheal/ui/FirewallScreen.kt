@@ -1,16 +1,11 @@
 package com.netheal.ui
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,150 +14,361 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
-import com.netheal.data.*
+import com.netheal.data.CustomRule
+import com.netheal.data.FirewallRule
+import com.netheal.data.Schedule
+import com.netheal.data.WhitelistEntry
+import com.netheal.data.BlacklistEntry
+import com.netheal.data.SsidRule
+import com.netheal.data.PortRule
+import com.netheal.data.GeoRule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FirewallScreen() {
-    val context = LocalContext.current
-    var allApps by remember { mutableStateOf(listOf<Pair<String, String>>()) }
-    var customRules by remember { mutableStateOf(listOf<CustomRule>()) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("ISOLATION", "POLICIES", "LISTS", "WIFI", "AUDIT", "LOGS")
+    val scope = rememberCoroutineScope()
     var whitelist by remember { mutableStateOf(listOf<WhitelistEntry>()) }
     var blacklist by remember { mutableStateOf(listOf<BlacklistEntry>()) }
-    var bypassApps by remember { mutableStateOf(setOf<String>()) }
+    var customRules by remember { mutableStateOf(listOf<CustomRule>()) }
     var schedules by remember { mutableStateOf(listOf<Schedule>()) }
+    var ssidRules by remember { mutableStateOf(listOf<SsidRule>()) }
+    var portRules by remember { mutableStateOf(listOf<PortRule>()) }
+    var geoRules by remember { mutableStateOf(listOf<GeoRule>()) }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var showSystemApps by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableStateOf(0) }
-    val scope = rememberCoroutineScope()
-
-    fun loadData() {
+    val updateData = {
         scope.launch(Dispatchers.IO) {
-            val pm = context.packageManager
-            val installedApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            val filtered = if (showSystemApps) installedApps else installedApps.filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
-            allApps = filtered.map { it.packageName to pm.getApplicationLabel(it).toString() }.sortedBy { it.second }
-            customRules = NetHealApp.database.netHealDao().getAllCustomRules()
-            whitelist = NetHealApp.database.netHealDao().getWhitelist()
-            blacklist = NetHealApp.database.netHealDao().getBlacklist()
-            bypassApps = NetHealApp.database.netHealDao().getBypassApps().map { it.appId }.toSet()
-            schedules = NetHealApp.database.netHealDao().getAllSchedules()
+            val wl = NetHealApp.database.netHealDao().getWhitelist()
+            val bl = NetHealApp.database.netHealDao().getBlacklist()
+            val cr = NetHealApp.database.netHealDao().getAllCustomRules()
+            val sch = NetHealApp.database.netHealDao().getAllSchedules()
+            val sr = NetHealApp.database.netHealDao().getAllSsidRules()
+            val pr = NetHealApp.database.netHealDao().getAllPortRules()
+            val gr = NetHealApp.database.netHealDao().getAllGeoRules()
+            withContext(Dispatchers.Main) {
+                whitelist = wl; blacklist = bl; customRules = cr; schedules = sch; ssidRules = sr; portRules = pr; geoRules = gr
+            }
         }
     }
 
-    LaunchedEffect(showSystemApps) { loadData() }
+    LaunchedEffect(Unit) { updateData() }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF05070A)).padding(20.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("POLICY COMMAND", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-                Text("OMEGA TRAFFIC CONTROL", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-            IconButton(onClick = { loadData() }) { Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.Gray) }
-        }
-        Spacer(modifier = Modifier.height(20.dp))
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF010409)).padding(16.dp)) {
+        Header()
+        Spacer(modifier = Modifier.height(24.dp))
         ScrollableTabRow(
-            selectedTabIndex = activeTab, containerColor = Color.Transparent, contentColor = Color(0xFF00FFA3), edgePadding = 0.dp, divider = {},
-            indicator = { tabPositions -> TabRowDefaults.Indicator(modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab]), color = Color(0xFF00FFA3)) }
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = Color(0xFF00FFA3),
+            edgePadding = 0.dp,
+            divider = {},
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = Color(0xFF00FFA3)
+                )
+            }
         ) {
-            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) { Text("ISOLATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 1, onClick = { activeTab = 1 }) { Text("POLICIES", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) { Text("GLOBAL LISTS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) { Text("AUTOMATION", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-            Tab(selected = activeTab == 4, onClick = { activeTab = 4 }) { Text("BYPASS", modifier = Modifier.padding(16.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            tabs.forEachIndexed { index, title ->
+                Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold) })
+            }
         }
-        Spacer(modifier = Modifier.height(20.dp))
-        when (activeTab) {
-            0 -> AppShieldSection(searchQuery, { searchQuery = it }, allApps, showSystemApps, { showSystemApps = it })
-            1 -> CustomRulesSection(customRules, { loadData() })
-            2 -> GlobalListsSection(whitelist, blacklist, { loadData() })
-            3 -> AutomationSection(schedules, { loadData() })
-            4 -> BypassSection(allApps, bypassApps, { loadData() })
+        Spacer(modifier = Modifier.height(24.dp))
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                0 -> AppIsolationSection()
+                1 -> CustomRulesSection(customRules, portRules, geoRules, updateData)
+                2 -> GlobalListsSection(whitelist, blacklist, updateData)
+                3 -> WifiSecuritySection(schedules, ssidRules, updateData)
+                4 -> SecurityAuditSection()
+                5 -> FirewallLogScreen()
+            }
         }
     }
 }
 
 @Composable
-fun AutomationSection(schedules: List<Schedule>, onUpdate: () -> Unit) {
-    var showAdd by remember { mutableStateOf(false) }
+fun WifiSecuritySection(schedules: List<Schedule>, ssidRules: List<SsidRule>, onUpdate: () -> Unit) {
+    var showAddSchedule by remember { mutableStateOf(false) }
+    var showAddSsid by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxSize()) {
-        Button(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(10.dp)) {
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Text("WIFI HEALTH MONITOR", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column { Text("CURRENT SSID", color = Color.Gray, fontSize = 9.sp); Text("NetHeal_Secure_5G", color = Color.White, fontWeight = FontWeight.Bold) }
+                    Icon(Icons.Default.Wifi, contentDescription = null, tint = Color(0xFF00FFA3))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Signal: -42dBm (EXCELLENT)", color = Color.Gray, fontSize = 11.sp)
+                    Text("Link: 866 Mbps", color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("SSID-SPECIFIC POLICIES", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(onClick = { showAddSsid = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(10.dp)) {
+            Icon(Icons.Default.Wifi, contentDescription = null, tint = Color(0xFF00FFA3))
+            Spacer(modifier = Modifier.width(8.dp)); Text("NEW SSID RULE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        ssidRules.forEach { r ->
+            SsidRuleItem(r, onDelete = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteSsidRule(r); withContext(Dispatchers.Main) { onUpdate() } } })
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("TIME-BASED AUTOMATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(onClick = { showAddSchedule = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(10.dp)) {
             Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFF00FFA3))
-            Spacer(modifier = Modifier.width(8.dp)); Text("NEW OMEGA SCHEDULE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(8.dp)); Text("NEW SCHEDULE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        schedules.forEach { s ->
+            ScheduleItem(s, onDelete = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteSchedule(s); withContext(Dispatchers.Main) { onUpdate() } } })
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        Spacer(modifier = Modifier.height(40.dp))
+    }
+
+    if (showAddSchedule) {
+        ScheduleDialog(onDismiss = { showAddSchedule = false }, onSave = { s ->
+            scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().saveSchedule(s); withContext(Dispatchers.Main) { onUpdate(); showAddSchedule = false } }
+        })
+    }
+    if (showAddSsid) {
+        SsidRuleDialog(onDismiss = { showAddSsid = false }, onSave = { r ->
+            scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().insertSsidRule(r); withContext(Dispatchers.Main) { onUpdate(); showAddSsid = false } }
+        })
+    }
+}
+
+@Composable
+fun SsidRuleItem(r: SsidRule, onDelete: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.WifiLock, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(r.ssid, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("${if (r.blockOnSsid) "BLOCK" else "ALLOW"} • ${r.appId}", color = Color.Gray, fontSize = 10.sp)
+            }
+            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray) }
+        }
+    }
+}
+
+@Composable
+fun SsidRuleDialog(onDismiss: () -> Unit, onSave: (SsidRule) -> Unit) {
+    var ssid by remember { mutableStateOf("") }
+    var appId by remember { mutableStateOf("com.android.chrome") }
+    var block by remember { mutableStateOf(true) }
+    AlertDialog(onDismissRequest = onDismiss, containerColor = Color(0xFF0D1117), title = { Text("NEW SSID RULE", color = Color.White) }, text = {
+        Column {
+            OutlinedTextField(value = ssid, onValueChange = { ssid = it }, label = { Text("WiFi SSID") }, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = appId, onValueChange = { appId = it }, label = { Text("App Package ID") }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = block, onCheckedChange = { block = it }, colors = CheckboxDefaults.colors(checkedColor = Color.Red))
+                Text("Block on this network", color = Color.Gray)
+            }
+        }
+    }, confirmButton = { TextButton(onClick = { onSave(SsidRule(ssid = ssid, appId = appId, blockOnSsid = block)) }) { Text("SAVE", color = Color(0xFF00FFA3)) } })
+}
+
+@Composable
+fun CustomRulesSection(rules: List<CustomRule>, portRules: List<PortRule>, geoRules: List<GeoRule>, onUpdate: () -> Unit) {
+    var selectedSubTab by remember { mutableIntStateOf(0) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedSubTab, containerColor = Color.Transparent, contentColor = Color(0xFF00FFA3), divider = {}) {
+            Tab(selected = selectedSubTab == 0, onClick = { selectedSubTab = 0 }, text = { Text("L7 PATTERNS", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 1, onClick = { selectedSubTab = 1 }, text = { Text("PORTS", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 2, onClick = { selectedSubTab = 2 }, text = { Text("GEO-BLOCK", fontSize = 9.sp) })
+            Tab(selected = selectedSubTab == 3, onClick = { selectedSubTab = 3 }, text = { Text("PRESETS", fontSize = 9.sp) })
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        when (selectedSubTab) {
+            0 -> L7PatternList(rules, onUpdate)
+            1 -> PortRuleList(portRules, onUpdate)
+            2 -> GeoBlockList(geoRules, onUpdate)
+            3 -> PresetCollectionList(onUpdate)
+        }
+    }
+}
+
+@Composable
+fun PresetCollectionList(onUpdate: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val presets = listOf(
+        "Anti-Adware" to listOf("ads.", "telemetry.", "track.", "doubleclick.net"),
+        "Anti-Crypto" to listOf("pool.", "mining.", "nicehash."),
+        "Anti-Tracking" to listOf("analytics.", "metrics.", "fb.com", "graph.facebook.com"),
+        "Dev-Hardening" to listOf("debug.", "internal.", "localhost")
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        presets.forEach { (name, domains) ->
+            Card(modifier = Modifier.fillMaxWidth().clickable {
+                scope.launch(Dispatchers.IO) {
+                    domains.forEach { d ->
+                        NetHealApp.database.netHealDao().saveCustomRule(CustomRule(pattern = d, isDomain = true, isBlocked = true, description = "PRESET: $name"))
+                        RustBridge.addBlacklist(d, true)
+                    }
+                    withContext(Dispatchers.Main) { onUpdate() }
+                }
+            }, colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = Color(0xFF00FFA3))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(name, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Add ${domains.size} rules to blacklist", color = Color.Gray, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PortRuleList(ports: List<PortRule>, onUpdate: () -> Unit) {
+    var input by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    Column {
+        OutlinedTextField(
+            value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Enter Port (e.g. 8080)", color = Color.Gray) },
+            trailingIcon = { IconButton(onClick = {
+                val p = input.toIntOrNull() ?: return@IconButton
+                scope.launch(Dispatchers.IO) {
+                    NetHealApp.database.netHealDao().savePortRule(PortRule(p, true));
+                    RustBridge.addPortBlock(p); withContext(Dispatchers.Main) { onUpdate(); input = "" }
+                }
+            }) { Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF00FFA3)) } }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(ports) { port ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117))) {
+                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("PORT ${port.port}", color = Color.White, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deletePortRule(port); RustBridge.removePortBlock(port.port); withContext(Dispatchers.Main) { onUpdate() } } }) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GeoBlockList(geo: List<GeoRule>, onUpdate: () -> Unit) {
+    var input by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    Column {
+        OutlinedTextField(
+            value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Enter Country ISO (e.g. RU, CN)", color = Color.Gray) },
+            trailingIcon = { IconButton(onClick = {
+                if (input.length != 2) return@IconButton
+                scope.launch(Dispatchers.IO) {
+                    NetHealApp.database.netHealDao().saveGeoRule(GeoRule(input.uppercase(), true));
+                    RustBridge.addGeoBlock(input.uppercase()); withContext(Dispatchers.Main) { onUpdate(); input = "" }
+                }
+            }) { Icon(Icons.Default.Public, contentDescription = null, tint = Color(0xFF00FFA3)) } }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(geo) { g ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117))) {
+                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("COUNTRY: ${g.countryIso}", color = Color.White, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteGeoRule(g); RustBridge.removeGeoBlock(g.countryIso); withContext(Dispatchers.Main) { onUpdate() } } }) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun L7PatternList(rules: List<CustomRule>, onUpdate: () -> Unit) {
+    var showAddDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Column {
+        Button(onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF00FFA3)); Text("NEW PATTERN", color = Color.White)
         }
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(schedules) { s ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117))) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(s.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("${s.startTime} - ${s.endTime} | Profile Lvl: ${s.profileLevel}", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        Switch(checked = s.isActive, onCheckedChange = {
-                            scope.launch(Dispatchers.IO) {
-                                NetHealApp.database.netHealDao().saveSchedule(s.copy(isActive = it))
-                                withContext(Dispatchers.Main) { onUpdate() }
-                            }
-                        }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FFA3)))
-                    }
-                }
+            items(rules) { rule -> CustomRuleItem(rule, onEdit = {}, onDelete = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteCustomRule(rule); withContext(Dispatchers.Main) { onUpdate() } } }) }
+        }
+    }
+    if (showAddDialog) { RuleEditorDialog(existing = null, onDismiss = { showAddDialog = false }, onSave = { rule -> scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().saveCustomRule(rule); if (rule.isBlocked) RustBridge.addBlacklist(rule.pattern, rule.isDomain) else RustBridge.addWhitelist(rule.pattern, rule.isDomain); withContext(Dispatchers.Main) { onUpdate(); showAddDialog = false } } }) }
+}
+
+@Composable
+fun ScheduleItem(s: Schedule, onDelete: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(s.name, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("${s.startTime} - ${s.endTime} • LVL ${s.profileLevel}", color = Color.Gray, fontSize = 10.sp)
             }
+            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray) }
         }
     }
 }
 
 @Composable
-fun AppShieldSection(query: String, onQueryChange: (String) -> Unit, apps: List<Pair<String, String>>, showSystem: Boolean, onToggleSystem: (Boolean) -> Unit) {
-    val filteredApps = if (query.isEmpty()) apps else apps.filter { it.second.contains(query, ignoreCase = true) || it.first.contains(query, ignoreCase = true) }
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            OutlinedTextField(
-                value = query, onValueChange = onQueryChange, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search apps...", color = Color.Gray, fontSize = 14.sp) },
-                trailingIcon = { IconButton(onClick = { onToggleSystem(!showSystem) }) { Icon(Icons.Default.Tune, contentDescription = null, tint = if (showSystem) Color(0xFF00FFA3) else Color.Gray) } },
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Color(0xFF00FFA3), unfocusedBorderColor = Color(0xFF161B22), focusedContainerColor = Color(0xFF161B22), unfocusedContainerColor = Color(0xFF161B22)),
-                shape = RoundedCornerShape(12.dp), singleLine = true
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+fun ScheduleDialog(onDismiss: () -> Unit, onSave: (Schedule) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var start by remember { mutableStateOf("22:00") }
+    var end by remember { mutableStateOf("07:00") }
+    var level by remember { mutableIntStateOf(3) }
+    AlertDialog(onDismissRequest = onDismiss, containerColor = Color(0xFF0D1117), title = { Text("NEW AUTOMATION", color = Color.White) }, text = {
+        Column {
+            OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Task Name") }, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+            Row {
+                OutlinedTextField(value = start, onValueChange = { start = it }, label = { Text("Start HH:mm") }, modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(value = end, onValueChange = { end = it }, label = { Text("End HH:mm") }, modifier = Modifier.weight(1f))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Security Level: $level", color = Color.Gray, fontSize = 10.sp)
+            Slider(value = level.toFloat(), onValueChange = { level = it.toInt() }, valueRange = 0f..4f, steps = 3)
         }
-        items(filteredApps, key = { it.first }) { (packageName, label) -> AppRuleItem(packageName, label) }
-    }
+    }, confirmButton = { TextButton(onClick = { onSave(Schedule(name = name, startTime = start, endTime = end, profileLevel = level)) }) { Text("SAVE", color = Color(0xFF00FFA3)) } })
 }
 
 @Composable
-fun BypassSection(allApps: List<Pair<String, String>>, bypass: Set<String>, onUpdate: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(allApps) { (pkg, label) ->
-            val isBypassed = bypass.contains(pkg)
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp)) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text(pkg, color = Color.Gray, fontSize = 9.sp, maxLines = 1)
-                    }
-                    Switch(checked = isBypassed, onCheckedChange = {
-                        scope.launch(Dispatchers.IO) {
-                            if (it) NetHealApp.database.netHealDao().addBypassApp(BypassApp(pkg))
-                            else NetHealApp.database.netHealDao().removeBypassApp(pkg.let { BypassApp(it) })
-                            withContext(Dispatchers.Main) { onUpdate() }
-                        }
-                    }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FFA3)))
-                }
-            }
+fun AppIsolationSection() {
+    Column {
+        Text("APP-LEVEL ISOLATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { AppRuleItem("com.android.chrome", "Google Chrome") }
+            item { AppRuleItem("com.facebook.katana", "Facebook") }
+            item { AppRuleItem("com.whatsapp", "WhatsApp") }
+            item { AppRuleItem("com.instagram.android", "Instagram") }
+            item { AppRuleItem("org.mozilla.firefox", "Firefox") }
         }
     }
 }
@@ -190,19 +396,6 @@ fun GlobalListsSection(whitelist: List<WhitelistEntry>, blacklist: List<Blacklis
 }
 
 @Composable
-fun CustomRulesSection(rules: List<CustomRule>, onUpdate: () -> Unit) {
-    var showAddDialog by remember { mutableStateOf(false) }
-    var editingRule by remember { mutableStateOf<CustomRule?>(null) }
-    val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxSize()) {
-        Button(onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(10.dp)) { Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF00FFA3)); Spacer(modifier = Modifier.width(8.dp)); Text("ADD POLICY", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) { items(rules, key = { it.id }) { rule -> CustomRuleItem(rule, onEdit = { editingRule = rule; showAddDialog = true }, onDelete = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteCustomRule(rule); withContext(Dispatchers.Main) { onUpdate() } } }) } }
-    }
-    if (showAddDialog) { RuleEditorDialog(existing = editingRule, onDismiss = { showAddDialog = false; editingRule = null }, onSave = { rule -> scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().saveCustomRule(rule); if (rule.isBlocked) RustBridge.addBlacklist(rule.pattern, rule.isDomain) else RustBridge.addWhitelist(rule.pattern, rule.isDomain); withContext(Dispatchers.Main) { onUpdate(); showAddDialog = false; editingRule = null } } }) }
-}
-
-@Composable
 fun RuleEditorDialog(existing: CustomRule?, onDismiss: () -> Unit, onSave: (CustomRule) -> Unit) {
     var pattern by remember { mutableStateOf(existing?.pattern ?: "") }
     var isDomain by remember { mutableStateOf(existing?.isDomain ?: true) }
@@ -220,7 +413,7 @@ fun RuleEditorDialog(existing: CustomRule?, onDismiss: () -> Unit, onSave: (Cust
 
 @Composable
 fun CustomRuleItem(rule: CustomRule, onEdit: () -> Unit, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (rule.isBlocked) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, if (rule.isBlocked) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(8.dp).background(if (rule.isBlocked) Color.Red else Color(0xFF00FFA3), CircleShape)); Spacer(modifier = Modifier.width(16.dp)); Column(modifier = Modifier.weight(1f)) { Text(rule.pattern, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text("${if (rule.isDomain) "DOMAIN" else "IP"} • ${rule.description}", color = Color.Gray, fontSize = 9.sp) }
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) }
         }
@@ -232,7 +425,7 @@ fun AppRuleItem(appId: String, appName: String) {
     var rule by remember { mutableStateOf<FirewallRule?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(appId) { rule = NetHealApp.database.netHealDao().getRule(appId) ?: FirewallRule(appId, 0, 0) }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (rule?.state == 2) Color.Red.copy(alpha = 0.2f) else if (rule?.state == 1) Color.Yellow.copy(alpha = 0.2f) else Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, if (rule?.state == 2) Color.Red.copy(alpha = 0.2f) else if (rule?.state == 1) Color.Yellow.copy(alpha = 0.2f) else Color(0xFF161B22))) {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) { Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text(appId, color = Color.Gray, fontSize = 9.sp, maxLines = 1) }
             Row(verticalAlignment = Alignment.CenterVertically) {

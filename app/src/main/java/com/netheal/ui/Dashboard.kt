@@ -4,9 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -28,16 +26,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
-import com.netheal.data.ThreatLog
-import com.netheal.data.UsageStats
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.time.LocalDate
+
+data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
+data class Connection(val target: String, val appId: String)
 
 @Composable
 fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
     val context = LocalContext.current
+    val prefs = context.getSharedPreferences("netheal_prefs", 0)
     var isEnabled by remember { mutableStateOf(NetHealApp.isServiceRunning(context)) }
     var health by remember { mutableStateOf(100) }
     var blockedCount by remember { mutableStateOf(0L) }
@@ -45,10 +44,13 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
     var topBlocked by remember { mutableStateOf(listOf<Pair<String, Long>>()) }
     var protoStats by remember { mutableStateOf(mapOf<String, Long>()) }
     var appUsage by remember { mutableStateOf(mapOf<String, UsageInfo>()) }
-    var isScanning by remember { mutableStateOf(false) }
+    var activeConnections by remember { mutableStateOf(listOf<Connection>()) }
+    var observedCount by remember { mutableIntStateOf(0) }
+    var isLockdown by remember { mutableStateOf(prefs.getBoolean("lockdown_mode", false)) }
+    var performanceMode by remember { mutableStateOf(prefs.getBoolean("performance_mode", false)) }
 
     val scope = rememberCoroutineScope()
-    val primaryColor = if (isEnabled) Color(0xFF00FFA3) else Color.Red
+    val primaryColor = if (isEnabled) (if (isLockdown) Color.Yellow else Color(0xFF00FFA3)) else Color.Red
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -60,18 +62,11 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
                 val analytics = String(RustBridge.getAnalytics())
                 if (analytics.isNotEmpty()) {
                     val json = JSONObject(analytics)
-                    val top = json.getJSONArray("top")
-                    val list = mutableListOf<Pair<String, Long>>()
-                    for (i in 0 until top.length()) { val item = top.getJSONObject(i); list.add(item.getString("t") to item.getLong("c")) }
-                    topBlocked = list
-                    val protos = json.getJSONObject("protocols")
-                    val pMap = mutableMapOf<String, Long>()
-                    protos.keys().forEach { k -> pMap[k] = protos.getLong(k) }
-                    protoStats = pMap
-                    val usage = json.getJSONObject("usage")
-                    val uMap = mutableMapOf<String, UsageInfo>()
-                    usage.keys().forEach { k -> val obj = usage.getJSONObject(k); uMap[k] = UsageInfo(obj.getLong("s"), obj.getLong("r"), obj.getLong("p")) }
-                    appUsage = uMap
+                    topBlocked = json.getJSONArray("top").let { arr -> List(arr.length()) { i -> arr.getJSONObject(i).let { it.getString("t") to it.getLong("c") } } }
+                    protoStats = json.getJSONObject("protocols").let { obj -> obj.keys().asSequence().associateWith { obj.getLong(it) } }
+                    appUsage = json.getJSONObject("usage").let { obj -> obj.keys().asSequence().associateWith { k -> obj.getJSONObject(k).let { UsageInfo(it.getLong("s"), it.getLong("r"), it.getLong("p")) } } }
+                    activeConnections = json.getJSONArray("conns").let { arr -> List(arr.length()) { i -> arr.getJSONObject(i).let { Connection(it.getString("t"), it.getString("a")) } } }
+                    observedCount = json.optInt("observed", 0)
                 }
             } catch (e: Exception) {}
             delay(2000)
@@ -82,8 +77,8 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoCard(modifier = Modifier.weight(1f), label = "ABSOLUTE CORE", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
-            InfoCard(modifier = Modifier.weight(1f), label = "ACTIVE DEFENSES", value = "${blockedCount + 256}", color = Color.Yellow, icon = Icons.Default.Shield)
+            InfoCard(modifier = Modifier.weight(1f), label = "DEFENSE CORE", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
+            InfoCard(modifier = Modifier.weight(1f), label = "OPTIMIZATION", value = if (performanceMode) "ULTRA" else "PEAK", color = Color.Cyan, icon = Icons.Default.Bolt)
         }
         Spacer(modifier = Modifier.height(24.dp))
         Box(modifier = Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
@@ -97,36 +92,110 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(imageVector = if (isEnabled) Icons.Default.Shield else Icons.Default.ShieldMoon, contentDescription = null, modifier = Modifier.size(48.dp), tint = primaryColor)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(if (isEnabled) "SECURE" else "OFF", color = primaryColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isEnabled) (if (isLockdown) "LOCKDOWN" else "SECURE") else "OFF", color = primaryColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        if (isEnabled) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = { isLockdown = !isLockdown; prefs.edit().putBoolean("lockdown_mode", isLockdown).apply(); RustBridge.setSecurityLevel(if (isLockdown) 3 else 0) },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isLockdown) Color.Yellow.copy(alpha = 0.1f) else Color(0xFF161B22)),
+                    shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, if (isLockdown) Color.Yellow else Color.Transparent)
+                ) { Text(if (isLockdown) "RELEASE" else "LOCKDOWN", color = if (isLockdown) Color.Yellow else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+
+                Button(
+                    onClick = { performanceMode = !performanceMode; prefs.edit().putBoolean("performance_mode", performanceMode).apply(); RustBridge.setPerformanceMode(performanceMode) },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (performanceMode) Color.Cyan.copy(alpha = 0.1f) else Color(0xFF161B22)),
+                    shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, if (performanceMode) Color.Cyan else Color.Transparent)
+                ) { Text(if (performanceMode) "STAMINA" else "BOOST", color = if (performanceMode) Color.Cyan else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
         StatusIndicator(isEnabled, primaryColor, scannedCount, blockedCount)
-        Spacer(modifier = Modifier.height(16.dp))
-        ProtocolDistribution(protoStats)
-        Spacer(modifier = Modifier.height(16.dp))
-        BandwidthGauge(appUsage)
-        Spacer(modifier = Modifier.height(16.dp))
-        NodeTopologyMap(primaryColor)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (observedCount > 0) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)), border = BorderStroke(1.dp, Color(0xFF00FFA3))) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoFixHigh, null, tint = Color(0xFF00FFA3))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text("IMMUNE LEARNING ACTIVE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Observed $observedCount unique domains. Analyzing risk...", color = Color.Gray, fontSize = 11.sp)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        Text("ATTACK SURFACE MAP", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        AttackSurfaceMap(topBlocked)
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("LIVE TELEMETRY", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
         RealTimeTrafficGraph(primaryColor)
+        Spacer(modifier = Modifier.height(16.dp))
+        NodeTopologyMap(primaryColor)
+
         Spacer(modifier = Modifier.height(24.dp))
-        Text("CRITICAL TARGETS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+        Text("ACTIVE CONNECTIONS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        if (activeConnections.isEmpty()) { Text("No active sessions detected.", color = Color.DarkGray, fontSize = 12.sp) }
+        else { activeConnections.take(5).forEach { conn -> ConnectionRow(conn) } }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        BandwidthGauge(appUsage)
+        Spacer(modifier = Modifier.height(24.dp))
+        ProtocolDistribution(protoStats)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("TOP THREAT TARGETS", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         TopBlockedList(topBlocked)
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = { scope.launch { isScanning = true; delay(3000); isScanning = false } },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22)),
-            shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1C2128))
-        ) {
-            if (isScanning) { CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00FFA3), strokeWidth = 2.dp); Spacer(modifier = Modifier.width(12.dp)); Text("RE-SYNCING...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-            else { Icon(Icons.Default.Radar, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(10.dp)); Text("RUN ABSOLUTE SCAN", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-        }
         Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun AttackSurfaceMap(blocked: List<Pair<String, Long>>) {
+    val infiniteTransition = rememberInfiniteTransition(label = "map")
+    val pulseAlpha by infiniteTransition.animateFloat(initialValue = 0.1f, targetValue = 0.5f, animationSpec = infiniteRepeatable(animation = tween(1500), repeatMode = RepeatMode.Reverse), label = "pulse")
+    Card(modifier = Modifier.fillMaxWidth().height(160.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            val center = Offset(size.width / 2, size.height / 2)
+            drawCircle(color = Color.Gray.copy(alpha = 0.2f), radius = size.height / 2, center = center, style = Stroke(width = 1f))
+            drawCircle(color = Color.Gray.copy(alpha = 0.1f), radius = size.height / 4, center = center, style = Stroke(width = 1f))
+            blocked.forEachIndexed { index, pair ->
+                val angle = (index.toFloat() / blocked.size.coerceAtLeast(1)) * 360f
+                val radius = (size.height / 2) * (0.4f + (Math.random().toFloat() * 0.5f))
+                val x = center.x + radius * Math.cos(Math.toRadians(angle.toDouble())).toFloat()
+                val y = center.y + radius * Math.sin(Math.toRadians(angle.toDouble())).toFloat()
+                drawCircle(color = Color.Red.copy(alpha = pulseAlpha), radius = 8f + (pair.second.coerceAtMost(20).toFloat()), center = Offset(x, y))
+                drawCircle(color = Color.Red, radius = 3f, center = Offset(x, y))
+            }
+            drawCircle(color = Color(0xFF00FFA3), radius = 6f, center = center)
+        }
+    }
+}
+
+@Composable
+fun ConnectionRow(conn: Connection) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF161B22)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(6.dp).background(Color(0xFF00FFA3), CircleShape))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(conn.target, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(conn.appId, color = Color.Gray, fontSize = 10.sp, maxLines = 1)
+        }
+        Icon(Icons.Default.Close, contentDescription = "Kill", tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(16.dp).clickable { RustBridge.killIp(conn.target) })
     }
 }
 
@@ -134,7 +203,7 @@ fun Dashboard(onToggleFirewall: (Boolean) -> Unit) {
 fun BandwidthGauge(usage: Map<String, UsageInfo>) {
     val totalSent = usage.values.sumOf { it.sent }
     val totalRecv = usage.values.sumOf { it.recv }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("DATA FLOW GAUGES", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
@@ -161,7 +230,7 @@ fun Gauge(modifier: Modifier, label: String, value: String, color: Color) {
 @Composable
 fun NodeTopologyMap(color: Color) {
     val nodes = remember { List(10) { Offset((Math.random() * 800).toFloat(), (Math.random() * 300).toFloat()) } }
-    Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth().height(120.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) {
         Box(modifier = Modifier.padding(12.dp)) {
             Text("NODE TOPOLOGY", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -176,7 +245,7 @@ fun NodeTopologyMap(color: Color) {
 fun RealTimeTrafficGraph(color: Color) {
     val points = remember { mutableStateListOf<Float>() }
     LaunchedEffect(Unit) { while (true) { if (points.size > 20) points.removeAt(0); points.add((Math.random() * 100).toFloat()); delay(500) } }
-    Card(modifier = Modifier.fillMaxWidth().height(100.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth().height(100.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) {
         Box(modifier = Modifier.padding(12.dp)) {
             Text("TRAFFIC LOAD", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             Canvas(modifier = Modifier.fillMaxSize()) { if (points.size > 1) { val path = Path(); val dx = size.width / (points.size - 1); path.moveTo(0f, size.height - (points[0] / 100f * size.height)); for (i in 1 until points.size) { path.lineTo(i * dx, size.height - (points[i] / 100f * size.height)) }; drawPath(path = path, color = color, style = Stroke(width = 2f)); drawPath(path = path, brush = Brush.verticalGradient(colors = listOf(color.copy(alpha = 0.2f), Color.Transparent))) } }
@@ -201,7 +270,7 @@ fun ProtocolDistribution(stats: Map<String, Long>) {
     val tcp = stats["6"] ?: 0L
     val udp = stats["17"] ?: 0L
     val total = (tcp + udp).coerceAtLeast(1L)
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("PROTOCOL STACK", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
@@ -219,7 +288,7 @@ fun ProtocolDistribution(stats: Map<String, Long>) {
 @Composable
 fun ProtocolLabel(label: String, color: Color) { Row(verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(6.dp).background(color, CircleShape)); Spacer(modifier = Modifier.width(4.dp)); Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold) } }
 @Composable
-fun InfoCard(modifier: Modifier, label: String, value: String, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector) { Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) { Column(modifier = Modifier.padding(14.dp)) { Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp)); Spacer(modifier = Modifier.height(8.dp)); Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold); Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold) } } }
+fun InfoCard(modifier: Modifier, label: String, value: String, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector) { Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) { Column(modifier = Modifier.padding(14.dp)) { Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp)); Spacer(modifier = Modifier.height(8.dp)); Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold); Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold) } } }
 @Composable
 fun Header() { Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column { Text("NETHEAL", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 4.sp); Text("ABSOLUTE SECURITY CORE", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold) } } }
 @Composable
@@ -236,3 +305,4 @@ fun StatusIndicator(isEnabled: Boolean, color: Color, scanned: Long, blocked: Lo
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(10.dp).background(color, CircleShape).shadow(elevation = 10.dp, shape = CircleShape, spotColor = color)); Spacer(modifier = Modifier.width(20.dp)); Column { Text(text = if (isEnabled) "IMMUNE CORE ACTIVE" else "DEFENSES OFFLINE", color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(text = "$scanned scanned • $blocked intercepted", color = Color.Gray, fontSize = 12.sp) } }
     }
 }
+fun formatSize(bytes: Long): String { if (bytes < 1024) return "$bytes B"; val k = bytes / 1024; if (k < 1024) return "$k KB"; val m = k / 1024; return "$m MB" }

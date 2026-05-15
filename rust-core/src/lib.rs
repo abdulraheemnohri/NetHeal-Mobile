@@ -21,7 +21,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
     packet: jbyteArray,
 ) -> jboolean {
     let packet_array = unsafe { JByteArray::from_raw(packet) };
-    let data = env.convert_byte_array(packet_array).unwrap_or_default();
+    let data = env.convert_byte_array(&packet_array).unwrap_or_default();
     let mut engine = ENGINE.lock().unwrap();
     if engine.handle_packet(&data, None) { 1 } else { 0 }
 }
@@ -35,9 +35,18 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacketWithApp(
 ) -> jboolean {
     let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
     let packet_array = unsafe { JByteArray::from_raw(packet) };
-    let data = env.convert_byte_array(packet_array).unwrap_or_default();
+    let data = env.convert_byte_array(&packet_array).unwrap_or_default();
     let mut engine = ENGINE.lock().unwrap();
     if engine.handle_packet(&data, Some(&app_id_str)) { 1 } else { 0 }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_recordHeartbeat(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.record_heartbeat();
 }
 
 #[no_mangle]
@@ -125,6 +134,59 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeBlacklist(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_addGeoBlock(
+    mut env: JNIEnv,
+    _class: JClass,
+    country: JString,
+) {
+    let country: String = env.get_string(&country).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.add_geo_block(country);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeGeoBlock(
+    mut env: JNIEnv,
+    _class: JClass,
+    country: JString,
+) {
+    let country: String = env.get_string(&country).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.remove_geo_block(country);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_addPortBlock(
+    _env: JNIEnv,
+    _class: JClass,
+    port: jint,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.add_port_block(port as u16);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_removePortBlock(
+    _env: JNIEnv,
+    _class: JClass,
+    port: jint,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.remove_port_block(port as u16);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_killIp(
+    mut env: JNIEnv,
+    _class: JClass,
+    ip: JString,
+) {
+    let ip: String = env.get_string(&ip).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.kill_ip(&ip);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_heal(
     _env: JNIEnv,
     _class: JClass,
@@ -153,6 +215,17 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setSecurityLevel(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setProfile(
+    mut env: JNIEnv,
+    _class: JClass,
+    profile: JString,
+) {
+    let profile: String = env.get_string(&profile).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_profile(&profile);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_setUpstreamDns(
     mut env: JNIEnv,
     _class: JClass,
@@ -161,6 +234,46 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setUpstreamDns(
     let dns: String = env.get_string(&dns).expect("Couldn't get java string!").into();
     let mut engine = ENGINE.lock().unwrap();
     engine.set_upstream_dns(&dns);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setPerformanceMode(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_performance_mode(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setStealthMode(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_stealth_mode(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setDnsHardening(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_dns_hardening(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setLearningMode(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_learning_mode(enabled != 0);
 }
 
 #[no_mangle]
@@ -192,7 +305,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_resetStats(
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAnalytics(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
 ) -> jbyteArray {
     let engine = ENGINE.lock().unwrap();
@@ -203,7 +316,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAnalytics(
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_runDiagnostics(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
 ) -> jbyteArray {
     let engine = ENGINE.lock().unwrap();

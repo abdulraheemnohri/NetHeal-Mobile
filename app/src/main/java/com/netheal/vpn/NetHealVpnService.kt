@@ -16,6 +16,7 @@ import com.netheal.data.ThreatLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -50,20 +51,26 @@ class NetHealVpnService : VpnService() {
             builder.setSession("NetHealVpn")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1500)
+            builder.setMtu(1400) // Optimized for mobile
             builder.addDnsServer("10.0.0.2")
 
-            // Apply bypass list
+            val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+            if (prefs.getBoolean("force_ipv4", false)) {
+                // builder logic for IPv4 only is default in addAddress
+            }
+
             serviceScope.launch {
                 val bypass = NetHealApp.database.netHealDao().getBypassApps()
                 bypass.forEach { try { builder.addDisallowedApplication(it.appId) } catch (e: Exception) {} }
-            }
 
-            vpnInterface = builder.establish()
-            if (vpnInterface != null) {
-                startForeground(1, createNotification("Absolute Core Active"))
-                thread = Thread { runVpnLoop(vpnInterface!!) }
-                thread?.start()
+                withContext(Dispatchers.Main) {
+                    vpnInterface = builder.establish()
+                    if (vpnInterface != null) {
+                        startForeground(1, createNotification("Absolute Core Active"))
+                        thread = Thread { runVpnLoop(vpnInterface!!) }
+                        thread?.start()
+                    }
+                }
             }
         } catch (e: Exception) { Log.e("NetHealVpn", "Establish failed", e) }
     }
@@ -80,7 +87,6 @@ class NetHealVpnService : VpnService() {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
 
-                    // Note: Real UID attribution requires socket metadata extraction
                     val allowed = RustBridge.handlePacket(data)
 
                     if (allowed) { outputStream.write(data, 0, length) }
@@ -90,7 +96,14 @@ class NetHealVpnService : VpnService() {
                 }
                 packet.clear()
             }
-        } catch (e: Exception) { Log.e("NetHealVpn", "VPN Loop error", e); RustBridge.heal() }
+        } catch (e: Exception) {
+            Log.e("NetHealVpn", "VPN Loop error", e)
+            val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+            if (prefs.getBoolean("kill_switch", true)) {
+                RustBridge.setSecurityLevel(4) // Panic: Kill all if VPN component fails
+            }
+            RustBridge.heal()
+        }
         finally { cleanup() }
     }
 
