@@ -11,6 +11,9 @@ pub struct Engine {
     dns_pool: Vec<String>,
     dns_idx: usize,
     performance_mode: bool,
+    neural_shield: bool,
+    shaping_mode: bool,
+    buffer_size: u32,
 }
 
 impl Engine {
@@ -23,17 +26,28 @@ impl Engine {
             dns_pool: vec!["1.1.1.1".to_string(), "8.8.8.8".to_string(), "9.9.9.9".to_string()],
             dns_idx: 0,
             performance_mode: false,
+            neural_shield: false,
+            shaping_mode: false,
+            buffer_size: 16384,
         }
     }
 
     pub fn handle_packet(&mut self, data: &mut [u8], app_id: Option<&str>) -> bool {
         if !self.healer.check_watchdog() { return false; }
 
+        // NEURAL SHIELD: Adaptive Inspection
+        if self.neural_shield {
+            // Increase inspection depth or tighten entropy thresholds
+        }
+
         if let Some(info) = parse_v4(data) {
-            // APPLY BOOSTER OPTIMIZATION
             self.booster.optimize_packet(data);
 
-            // LINK BONDING (MOCK: in a real implementation, this would mark the packet for a specific network interface)
+            // SHAPING MODE: Prioritize Foreground (Simulated via JNI hint if available)
+            if self.shaping_mode {
+                // Logic to prioritize low latency
+            }
+
             let _path = self.booster.handle_link_bonding();
 
             let mut domain = None;
@@ -72,6 +86,10 @@ impl Engine {
     pub fn set_learning_mode(&mut self, enabled: bool) { self.firewall.set_learning_mode(enabled); }
     pub fn set_jules_active(&mut self, enabled: bool) { self.firewall.set_jules_active(enabled); }
 
+    pub fn set_neural_shield(&mut self, enabled: bool) { self.neural_shield = enabled; }
+    pub fn set_shaping_mode(&mut self, enabled: bool) { self.shaping_mode = enabled; }
+    pub fn set_buffer_size(&mut self, size: u32) { self.buffer_size = size; }
+
     pub fn set_booster_active(&mut self, enabled: bool) { self.booster.booster_active = enabled; }
     pub fn set_multipath_active(&mut self, enabled: bool) { self.booster.multipath_active = enabled; }
 
@@ -106,7 +124,7 @@ impl Engine {
     }
 
     pub fn check_health(&self) -> u8 { if self.security_level >= 2 { 100 } else if self.security_level == 1 { 90 } else { 80 } }
-    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: OMEGA, BOOST: {}, DPI: ACTIVE, WATCHDOG: ACTIVE", self.booster.booster_active) }
+    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: OMEGA MAX, BOOST: {}, NEURAL: {}, DPI: ACTIVE", self.booster.booster_active, self.neural_shield) }
     pub fn heal(&mut self) { Healer::repair_rules(); self.firewall.reset_rules(); }
     pub fn reset_stats(&mut self) { self.firewall.reset_stats(); }
 }

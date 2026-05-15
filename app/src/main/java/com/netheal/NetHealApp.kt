@@ -54,32 +54,31 @@ class NetHealApp : Application() {
         while (true) {
             RustBridge.recordHeartbeat()
             val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-
-            // DEEPER JULES AI INTEGRATION
             if (prefs.getBoolean("jules_api_active", false)) {
                 syncJulesThreatIntelligence(prefs.getString("jules_api_key", "") ?: "")
+                runPredictiveAnalytics(prefs)
             }
-
-            // Battery Intelligence (from AGENTS.md)
             checkBatteryStatus(prefs)
-
-            // Stats Tracking
             val today = LocalDate.now().toString()
             val scanned = RustBridge.getScannedCount()
             val blocked = RustBridge.getBlockedCount()
             database.netHealDao().updateStats(UsageStats(today, scanned, blocked))
-
-            // Posture Awareness (WiFi/Captive)
             updateNetworkPosture()
-
-            // Scheduling
             runScheduledTasks()
-
             val cal = Calendar.getInstance()
             cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
             database.netHealDao().updateHourly(HourlyUsage(hour = cal.timeInMillis, sent = scanned, recv = blocked))
-
             delay(15000)
+        }
+    }
+
+    private suspend fun runPredictiveAnalytics(prefs: android.content.SharedPreferences) {
+        val now = LocalTime.now()
+        if (now.hour >= 23 || now.hour < 5) {
+            if (prefs.getBoolean("neural_shield", true)) {
+                RustBridge.setSecurityLevel(3)
+                Log.i("JulesAI", "Predictive Analytics: Enabling Night-Shield protection.")
+            }
         }
     }
 
@@ -90,31 +89,16 @@ class NetHealApp : Application() {
             if (analyticsBytes.isNotEmpty()) {
                 val analytics = JSONObject(String(analyticsBytes))
                 val usage = analytics.optJSONObject("usage")
-
-                // AI Rule Generation: Enhanced heuristics
                 usage?.keys()?.forEach { appId ->
                     val appData = usage.getJSONObject(appId)
-                    val packets = appData.getLong("p")
-                    val sent = appData.getLong("s")
-
-                    // Detect data exfiltration pattern: high sent-to-packets ratio
-                    if (packets > 5000 && sent > packets * 512 && !appId.startsWith("com.android")) {
-                        RustBridge.setAppRule(appId, 2) // BLOCK suspicious leak
-                        Log.w("JulesAI", "Blocking app ${appId} due to exfiltration pattern")
+                    if (appData.getLong("p") > 10000 && !appId.startsWith("com.android")) {
+                        RustBridge.setAppRule(appId, 2)
                     }
                 }
-
-                // Dynamic Signature Sync
-                val newSignatures = listOf("c2.evil-server.bit", "miner.pool.hidden", "telemetry.aggressive.io")
+                val newSignatures = listOf("c2-alpha.net", "miner.pool.x", "stealth-exfil.v3")
                 newSignatures.forEach { target ->
                     RustBridge.updateAiRisk(target, 100)
                     RustBridge.addBlacklist(target, true)
-                    database.netHealDao().addToBlacklist(BlacklistEntry(target))
-                }
-
-                // Heuristic improvement: AI suggests increasing security level during high global threat
-                if (System.currentTimeMillis() % 10000 < 2000) { // Simulated global alert
-                    RustBridge.setSecurityLevel(2) // Bump to Military Security
                 }
             }
         } catch (e: Exception) { Log.e("JulesAI", "Sync failed", e) }
@@ -127,10 +111,13 @@ class NetHealApp : Application() {
         val level: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
         val batteryPct = level * 100 / scale.toFloat()
+            if (batteryPct < 5 && prefs.getBoolean("battery_safeguard", true)) {
+                RustBridge.setSecurityLevel(0)
+                RustBridge.setBoosterActive(false)
+                Log.w("NetHeal", "Battery Safeguard Triggered: Defenses Offline")
+            }
         if (batteryPct < 15 && !prefs.getBoolean("performance_mode", false)) {
-            RustBridge.setPerformanceMode(true) // Auto-trigger Stamina Mode
-        RustBridge.setBoosterActive(prefs.getBoolean("booster_active", false))
-        RustBridge.setMultipathActive(prefs.getBoolean("multipath_active", false))
+            RustBridge.setPerformanceMode(true)
         }
     }
 
@@ -140,15 +127,10 @@ class NetHealApp : Application() {
         val nw = connectivityManager.activeNetwork
         val actNw = connectivityManager.getNetworkCapabilities(nw)
         val isCaptive = actNw?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) ?: false
-
         @Suppress("DEPRECATION")
         val ssid = wifi.connectionInfo.ssid?.replace("\"", "") ?: "Cellular"
-
-        if (isCaptive) {
-            RustBridge.setSecurityLevel(0)
-        } else if (ssid != "Cellular" && (ssid.contains("Public") || ssid.contains("Guest"))) {
-            RustBridge.setSecurityLevel(3) // Lockdown on untrusted WiFi
-        }
+        if (isCaptive) { RustBridge.setSecurityLevel(0) }
+        else if (ssid != "Cellular" && (ssid.contains("Public") || ssid.contains("Guest"))) { RustBridge.setSecurityLevel(3) }
     }
 
     private suspend fun runScheduledTasks() {
@@ -159,9 +141,7 @@ class NetHealApp : Application() {
                 try {
                     val start = LocalTime.parse(schedule.startTime, formatter)
                     val end = LocalTime.parse(schedule.endTime, formatter)
-                    if (now.isAfter(start) && now.isBefore(end)) {
-                        RustBridge.setSecurityLevel(schedule.profileLevel)
-                    }
+                    if (now.isAfter(start) && now.isBefore(end)) { RustBridge.setSecurityLevel(schedule.profileLevel) }
                 } catch (e: Exception) {}
             }
         }
@@ -174,6 +154,7 @@ class NetHealApp : Application() {
 
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
         RustBridge.setJulesActive(prefs.getBoolean("jules_api_active", false))
+        RustBridge.setNeuralShield(prefs.getBoolean("neural_shield", false))
         RustBridge.setPerformanceMode(prefs.getBoolean("performance_mode", false))
         RustBridge.setBoosterActive(prefs.getBoolean("booster_active", false))
         RustBridge.setMultipathActive(prefs.getBoolean("multipath_active", false))
