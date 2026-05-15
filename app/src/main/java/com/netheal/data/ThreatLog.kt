@@ -14,7 +14,8 @@ data class ThreatLog(
 @Entity(tableName = "firewall_rules")
 data class FirewallRule(
     @PrimaryKey val appId: String,
-    val state: Int // 0: Allowed, 1: WiFi-Only, 2: Blocked
+    val state: Int, // 0: Allowed, 1: WiFi-Only, 2: Blocked
+    val bwLimit: Long = 0 // 0 means no limit
 )
 
 @Entity(tableName = "bypass_apps")
@@ -41,6 +42,16 @@ data class CustomRule(
     val description: String = ""
 )
 
+@Entity(tableName = "schedules")
+data class Schedule(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val startTime: String, // HH:mm
+    val endTime: String,
+    val profileLevel: Int, // Level to set
+    val isActive: Boolean = true
+)
+
 @Entity(tableName = "usage_stats")
 data class UsageStats(
     @PrimaryKey val day: String,
@@ -63,8 +74,8 @@ interface NetHealDao {
     suspend fun getAllRules(): List<FirewallRule>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveRule(rule: FirewallRule)
-    @Query("SELECT state FROM firewall_rules WHERE appId = :appId")
-    suspend fun getAppState(appId: String): Int?
+    @Query("SELECT * FROM firewall_rules WHERE appId = :appId")
+    suspend fun getRule(appId: String): FirewallRule?
 
     @Query("SELECT * FROM bypass_apps")
     suspend fun getBypassApps(): List<BypassApp>
@@ -93,8 +104,13 @@ interface NetHealDao {
     suspend fun saveCustomRule(rule: CustomRule)
     @Delete
     suspend fun deleteCustomRule(rule: CustomRule)
-    @Query("DELETE FROM custom_rules")
-    suspend fun deleteAllCustomRules()
+
+    @Query("SELECT * FROM schedules")
+    suspend fun getAllSchedules(): List<Schedule>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveSchedule(s: Schedule)
+    @Delete
+    suspend fun deleteSchedule(s: Schedule)
 
     @Query("SELECT * FROM usage_stats WHERE day = :day")
     suspend fun getStatsForDay(day: String): UsageStats?
@@ -102,7 +118,7 @@ interface NetHealDao {
     suspend fun updateStats(stats: UsageStats)
 }
 
-@Database(entities = [ThreatLog::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, UsageStats::class], version = 9)
+@Database(entities = [ThreatLog::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, UsageStats::class], version = 10)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }

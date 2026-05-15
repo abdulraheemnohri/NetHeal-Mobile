@@ -24,11 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
-import com.netheal.data.*
+import com.netheal.data.FirewallRule
+import com.netheal.data.WhitelistEntry
+import com.netheal.data.BlacklistEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,9 +39,9 @@ fun SettingsScreen() {
     var highSecurity by remember { mutableStateOf(prefs.getBoolean("military_mode", false)) }
     var lockdownMode by remember { mutableStateOf(prefs.getBoolean("lockdown_mode", false)) }
     var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
+    var killSwitchAuto by remember { mutableStateOf(prefs.getBoolean("kill_switch_auto", true)) }
+    var stealthMode by remember { mutableStateOf(prefs.getBoolean("stealth_mode", false)) }
     var upstreamDns by remember { mutableStateOf(prefs.getString("upstream_dns", "Cloudflare") ?: "Cloudflare") }
-    var logRetention by remember { mutableStateOf(prefs.getInt("log_retention", 7)) }
-
     val scope = rememberCoroutineScope()
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val isIgnoringBattery = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -50,16 +50,18 @@ fun SettingsScreen() {
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF05070A)).padding(20.dp).verticalScroll(rememberScrollState())) {
         Text("COMMAND CENTER", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
-        Text("ABSOLUTE ENGINE CONFIGURATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("ABSOLUTE OMEGA CONFIGURATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(30.dp))
 
-        Text("STABILITY", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        if (!isIgnoringBattery) { SettingAction("Bypass Battery Optimization", "Prevent background termination", Icons.Default.BatteryAlert) { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) { val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }; context.startActivity(intent) } } }
+        Text("SYSTEM STABILITY", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        if (!isIgnoringBattery) { SettingAction("Disable Battery Optimization", "Prevent background termination", Icons.Default.BatteryAlert) { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) { val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }; context.startActivity(intent) } } }
         SettingToggle("Auto-Healing Core", "Automatic rule restoration", autoHeal) { autoHeal = it; prefs.edit().putBoolean("auto_heal", it).apply() }
+        SettingToggle("Stealth Mode", "Hide protection presence", stealthMode) { stealthMode = it; prefs.edit().putBoolean("stealth_mode", it).apply() }
 
         Spacer(modifier = Modifier.height(24.dp))
         Text("SECURITY ARSENAL", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         SettingToggle("Absolute Kill Switch", "Block ALL traffic immediately", killSwitch) { killSwitch = it; prefs.edit().putBoolean("kill_switch", it).apply(); RustBridge.setSecurityLevel(if (it) 4 else if (lockdownMode) 3 else if (highSecurity) 2 else 0) }
+        SettingToggle("Kill Switch Auto-Trigger", "Active if VPN is disrupted", killSwitchAuto) { killSwitchAuto = it; prefs.edit().putBoolean("kill_switch_auto", it).apply() }
         SettingToggle("Lockdown Mode", "Strict Whitelist-Only", lockdownMode) { lockdownMode = it; prefs.edit().putBoolean("lockdown_mode", it).apply(); if (!killSwitch) RustBridge.setSecurityLevel(if (it) 3 else if (highSecurity) 2 else 0) }
         SettingToggle("Military Security", "Deep Packet Analytics", highSecurity) { highSecurity = it; prefs.edit().putBoolean("military_mode", it).apply(); if (!killSwitch && !lockdownMode) RustBridge.setSecurityLevel(if (it) 2 else 0) }
 
@@ -74,20 +76,15 @@ fun SettingsScreen() {
             })
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("POLICY MGMT", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        SettingAction("Export Policies (JSON)", "Backup all rules to cache", Icons.Default.FileUpload) { Toast.makeText(context, "Policies exported", Toast.LENGTH_SHORT).show() }
-        SettingAction("Import Policies (JSON)", "Restore from JSON source", Icons.Default.FileDownload) { Toast.makeText(context, "Importing system state...", Toast.LENGTH_SHORT).show() }
-
         Spacer(modifier = Modifier.height(32.dp))
-        Text("SYSTEM TOOLS", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("OMEGA TOOLS", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         SettingAction("Absolute Audit", "Full system link test", Icons.Default.NetworkCheck) { val res = String(RustBridge.runDiagnostics()); Toast.makeText(context, res, Toast.LENGTH_LONG).show() }
-        SettingAction("Purge Telemetry", "Wipe scanning stats", Icons.Default.BarChart) { RustBridge.resetStats(); Toast.makeText(context, "Telemetry reset", Toast.LENGTH_SHORT).show() }
-        SettingAction("Nuke Rules", "Reset all firewall states", Icons.Default.DeleteForever) { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().getAllRules().forEach { RustBridge.setAppRule(it.appId, 0); NetHealApp.database.netHealDao().saveRule(FirewallRule(it.appId, 0)) } }; Toast.makeText(context, "Rules purged", Toast.LENGTH_SHORT).show() }
+        SettingAction("Wipe Telemetry", "Clear scanning stats", Icons.Default.BarChart) { RustBridge.resetStats(); Toast.makeText(context, "Telemetry reset", Toast.LENGTH_SHORT).show() }
+        SettingAction("Nuke Rules", "Reset all isolation states", Icons.Default.DeleteForever) { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().getAllRules().forEach { RustBridge.setAppRule(it.appId, 0); NetHealApp.database.netHealDao().saveRule(FirewallRule(it.appId, 0, 0)) } }; Toast.makeText(context, "Rules purged", Toast.LENGTH_SHORT).show() }
 
         Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.Gray.copy(alpha = 0.1f))
-        SystemInfoItem("Core Version", "v4.5.0-Absolute-Rust")
-        SystemInfoItem("Status", "Secure")
+        SystemInfoItem("Engine Version", "v5.0.0-Absolute-Omega-Rust")
+        SystemInfoItem("Status", "Absolute Secure")
         Spacer(modifier = Modifier.height(40.dp))
     }
 }
