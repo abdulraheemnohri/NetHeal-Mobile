@@ -65,7 +65,7 @@ fun LogsScreen() {
                 Text("TRAFFIC CENTER", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                 Text("ABSOLUTE DATA TELEMETRY", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
-            IconButton(onClick = { scope.launch { NetHealApp.database.netHealDao().deleteAllLogs(); logs = emptyList() } }) { Icon(Icons.Default.DeleteSweep, contentDescription = "Clear", tint = Color.Gray) }
+            IconButton(onClick = { scope.launch { NetHealApp.database.netHealDao().deleteAllLogs(); logs = emptyList() } }) { Icon(Icons.Default.DeleteSweep, contentDescription = "Clear", tint = Color(0xFF00FFA3)) }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -94,7 +94,7 @@ fun LogsScreen() {
 
 @Composable
 fun TrafficUsageCard(pkg: String, info: UsageInfo) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF161B22))) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, Color(0xFF161B22))) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(24.dp).background(Color(0xFF161B22), CircleShape), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Apps, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(14.dp))
@@ -112,6 +112,7 @@ fun TrafficUsageCard(pkg: String, info: UsageInfo) {
     }
 }
 
+fun formatSize(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024f)
     return String.format("%.1f MB", bytes / (1024f * 1024f))
@@ -129,3 +130,5 @@ fun LogCard(log: ThreatLog) {
         }
     }
 }
+
+data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
