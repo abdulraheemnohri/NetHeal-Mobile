@@ -30,7 +30,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
 data class Connection(val target: String, val appId: String)
 
 @Composable
@@ -305,4 +304,3 @@ fun StatusIndicator(isEnabled: Boolean, color: Color, scanned: Long, blocked: Lo
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(10.dp).background(color, CircleShape).shadow(elevation = 10.dp, shape = CircleShape, spotColor = color)); Spacer(modifier = Modifier.width(20.dp)); Column { Text(text = if (isEnabled) "IMMUNE CORE ACTIVE" else "DEFENSES OFFLINE", color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text(text = "$scanned scanned • $blocked intercepted", color = Color.Gray, fontSize = 12.sp) } }
     }
 }
-fun formatSize(bytes: Long): String { if (bytes < 1024) return "$bytes B"; val k = bytes / 1024; if (k < 1024) return "$k KB"; val m = k / 1024; return "$m MB" }

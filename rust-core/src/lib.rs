@@ -16,14 +16,21 @@ static ENGINE: Lazy<Mutex<Engine>> = Lazy::new(|| Mutex::new(Engine::new()));
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     packet: jbyteArray,
 ) -> jboolean {
     let packet_array = unsafe { JByteArray::from_raw(packet) };
-    let data = env.convert_byte_array(&packet_array).unwrap_or_default();
+    let mut data = env.convert_byte_array(&packet_array).unwrap_or_default();
     let mut engine = ENGINE.lock().unwrap();
-    if engine.handle_packet(&data, None) { 1 } else { 0 }
+    let allowed = engine.handle_packet(&mut data, None);
+
+    if allowed {
+        let i8_data: Vec<i8> = data.into_iter().map(|b| b as i8).collect();
+        env.set_byte_array_region(&packet_array, 0, &i8_data).unwrap();
+    }
+
+    if allowed { 1 } else { 0 }
 }
 
 #[no_mangle]
@@ -35,9 +42,16 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacketWithApp(
 ) -> jboolean {
     let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
     let packet_array = unsafe { JByteArray::from_raw(packet) };
-    let data = env.convert_byte_array(&packet_array).unwrap_or_default();
+    let mut data = env.convert_byte_array(&packet_array).unwrap_or_default();
     let mut engine = ENGINE.lock().unwrap();
-    if engine.handle_packet(&data, Some(&app_id_str)) { 1 } else { 0 }
+    let allowed = engine.handle_packet(&mut data, Some(&app_id_str));
+
+    if allowed {
+        let i8_data: Vec<i8> = data.into_iter().map(|b| b as i8).collect();
+        env.set_byte_array_region(&packet_array, 0, &i8_data).unwrap();
+    }
+
+    if allowed { 1 } else { 0 }
 }
 
 #[no_mangle]
@@ -187,6 +201,18 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_killIp(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_updateAiRisk(
+    mut env: JNIEnv,
+    _class: JClass,
+    target: JString,
+    risk: jint,
+) {
+    let target: String = env.get_string(&target).expect("Couldn't get java string!").into();
+    let mut engine = ENGINE.lock().unwrap();
+    engine.update_ai_risk(target, risk as u8);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_heal(
     _env: JNIEnv,
     _class: JClass,
@@ -274,6 +300,16 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setLearningMode(
 ) {
     let mut engine = ENGINE.lock().unwrap();
     engine.set_learning_mode(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setJulesActive(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_jules_active(enabled != 0);
 }
 
 #[no_mangle]

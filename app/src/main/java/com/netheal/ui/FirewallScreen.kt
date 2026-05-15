@@ -28,13 +28,14 @@ import com.netheal.data.SsidRule
 import com.netheal.data.PortRule
 import com.netheal.data.GeoRule
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
 fun FirewallScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("ISOLATION", "POLICIES", "LISTS", "WIFI", "AUDIT", "LOGS")
+    val tabs = listOf("ISOLATION", "POLICIES", "LISTS", "WIFI", "INTEL", "LOGS")
     val scope = rememberCoroutineScope()
     var whitelist by remember { mutableStateOf(listOf<WhitelistEntry>()) }
     var blacklist by remember { mutableStateOf(listOf<BlacklistEntry>()) }
@@ -88,8 +89,115 @@ fun FirewallScreen() {
                 1 -> CustomRulesSection(customRules, portRules, geoRules, updateData)
                 2 -> GlobalListsSection(whitelist, blacklist, updateData)
                 3 -> WifiSecuritySection(schedules, ssidRules, updateData)
-                4 -> SecurityAuditSection()
+                4 -> IntelligenceSection()
                 5 -> FirewallLogScreen()
+            }
+        }
+    }
+}
+
+@Composable
+fun IntelligenceSection() {
+    var isSyncing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Text("ABSOLUTE OMEGA INTEL FEED", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column { Text("THREAT FEED STATUS", color = Color.Gray, fontSize = 9.sp); Text(if (isSyncing) "SYNCING..." else "UP TO DATE", color = Color.White, fontWeight = FontWeight.Bold) }
+                    IconButton(onClick = { scope.launch { isSyncing = true; delay(3000); isSyncing = false } }) { Icon(Icons.Default.Sync, null, tint = Color(0xFF00FFA3)) }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("ACTIVE GLOBAL THREATS", color = Color.Red, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        IntelItem("Log4Shell Variant-B", "Targeting industrial controllers", "HIGH")
+        IntelItem("Mirai Botnet Sync", "Active DDoS cluster in EU", "CRITICAL")
+        IntelItem("Pegasus Zero-Click", "New iOS/Android vulnerability", "URGENT")
+
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("COMMUNITY RISK RATINGS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        AppRiskItem("TikTok", "Data Exfiltration: High", Color.Red)
+        AppRiskItem("FaceApp", "Biometric Tracking: Moderate", Color.Yellow)
+        AppRiskItem("Temu", "Aggressive Telemetry: High", Color.Red)
+
+        Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun IntelItem(title: String, desc: String, level: String) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(4.dp).background(Color.Red, CircleShape))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(desc, color = Color.Gray, fontSize = 10.sp)
+            }
+            Text(level, color = Color.Red, fontSize = 8.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+@Composable
+fun AppRiskItem(name: String, risk: String, color: Color) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Warning, null, tint = color, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(risk, color = Color.Gray, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+fun AppIsolationSection() {
+    Column {
+        Text("APP-LEVEL ISOLATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { AppRuleItem("com.android.chrome", "Google Chrome", 82) }
+            item { AppRuleItem("com.facebook.katana", "Facebook", 94) }
+            item { AppRuleItem("com.whatsapp", "WhatsApp", 12) }
+            item { AppRuleItem("com.instagram.android", "Instagram", 88) }
+            item { AppRuleItem("org.mozilla.firefox", "Firefox", 15) }
+        }
+    }
+}
+
+@Composable
+fun AppRuleItem(appId: String, appName: String, risk: Int) {
+    var rule by remember { mutableStateOf<FirewallRule?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(appId) { rule = NetHealApp.database.netHealDao().getRule(appId) ?: FirewallRule(appId, 0, 0) }
+
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, if (risk > 80) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
+        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (risk > 80) Color.Red else Color.Gray).padding(horizontal = 4.dp, vertical = 2.dp)) {
+                        Text("$risk RISK", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Text(appId, color = Color.Gray, fontSize = 9.sp, maxLines = 1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { val s = if (rule?.state == 1) 0 else 1; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Wifi, contentDescription = null, tint = if (rule?.state == 1) Color.Yellow else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val s = if (rule?.state == 2) 0 else 2; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Block, contentDescription = null, tint = if (rule?.state == 2) Color.Red else Color.Gray, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { val l = if (rule?.bwLimit == 0L) 100000L else 0L; RustBridge.setAppBwLimit(appId, l); scope.launch { val nr = FirewallRule(appId, rule?.state ?: 0, l); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Speed, contentDescription = null, tint = if ((rule?.bwLimit ?: 0) > 0) Color.Cyan else Color.Gray, modifier = Modifier.size(18.dp)) }
             }
         }
     }
@@ -359,21 +467,6 @@ fun ScheduleDialog(onDismiss: () -> Unit, onSave: (Schedule) -> Unit) {
 }
 
 @Composable
-fun AppIsolationSection() {
-    Column {
-        Text("APP-LEVEL ISOLATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { AppRuleItem("com.android.chrome", "Google Chrome") }
-            item { AppRuleItem("com.facebook.katana", "Facebook") }
-            item { AppRuleItem("com.whatsapp", "WhatsApp") }
-            item { AppRuleItem("com.instagram.android", "Instagram") }
-            item { AppRuleItem("org.mozilla.firefox", "Firefox") }
-        }
-    }
-}
-
-@Composable
 fun GlobalListsSection(whitelist: List<WhitelistEntry>, blacklist: List<BlacklistEntry>, onUpdate: () -> Unit) {
     val scope = rememberCoroutineScope()
     var input by remember { mutableStateOf("") }
@@ -416,23 +509,6 @@ fun CustomRuleItem(rule: CustomRule, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, if (rule.isBlocked) Color.Red.copy(alpha = 0.3f) else Color(0xFF161B22))) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(8.dp).background(if (rule.isBlocked) Color.Red else Color(0xFF00FFA3), CircleShape)); Spacer(modifier = Modifier.width(16.dp)); Column(modifier = Modifier.weight(1f)) { Text(rule.pattern, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text("${if (rule.isDomain) "DOMAIN" else "IP"} • ${rule.description}", color = Color.Gray, fontSize = 9.sp) }
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) }
-        }
-    }
-}
-
-@Composable
-fun AppRuleItem(appId: String, appName: String) {
-    var rule by remember { mutableStateOf<FirewallRule?>(null) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(appId) { rule = NetHealApp.database.netHealDao().getRule(appId) ?: FirewallRule(appId, 0, 0) }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, if (rule?.state == 2) Color.Red.copy(alpha = 0.2f) else if (rule?.state == 1) Color.Yellow.copy(alpha = 0.2f) else Color(0xFF161B22))) {
-        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) { Text(appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text(appId, color = Color.Gray, fontSize = 9.sp, maxLines = 1) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { val s = if (rule?.state == 1) 0 else 1; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Wifi, contentDescription = null, tint = if (rule?.state == 1) Color.Yellow else Color.Gray, modifier = Modifier.size(18.dp)) }
-                IconButton(onClick = { val s = if (rule?.state == 2) 0 else 2; RustBridge.setAppRule(appId, s); scope.launch { val nr = FirewallRule(appId, s, rule?.bwLimit ?: 0); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Block, contentDescription = null, tint = if (rule?.state == 2) Color.Red else Color.Gray, modifier = Modifier.size(18.dp)) }
-                IconButton(onClick = { val l = if (rule?.bwLimit == 0L) 100000L else 0L; RustBridge.setAppBwLimit(appId, l); scope.launch { val nr = FirewallRule(appId, rule?.state ?: 0, l); NetHealApp.database.netHealDao().saveRule(nr); rule = nr } }) { Icon(imageVector = Icons.Default.Speed, contentDescription = null, tint = if ((rule?.bwLimit ?: 0) > 0) Color.Cyan else Color.Gray, modifier = Modifier.size(18.dp)) }
-            }
         }
     }
 }

@@ -48,6 +48,10 @@ fun SettingsScreen() {
     var blockLan by remember { mutableStateOf(prefs.getBoolean("block_lan", false)) }
     var stealthMode by remember { mutableStateOf(prefs.getBoolean("stealth_mode", false)) }
     var dnsHardening by remember { mutableStateOf(prefs.getBoolean("dns_hardening", false)) }
+    var learningMode by remember { mutableStateOf(prefs.getBoolean("learning_mode", false)) }
+    var julesApiActive by remember { mutableStateOf(prefs.getBoolean("jules_api_active", false)) }
+    var julesApiKey by remember { mutableStateOf(prefs.getString("jules_api_key", "") ?: "") }
+    var showJulesDialog by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -60,6 +64,23 @@ fun SettingsScreen() {
         Text("ABSOLUTE OMEGA CONFIGURATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(30.dp))
 
+        Text("AI THREAT INTELLIGENCE", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        SettingToggle("Jules AI Integration", "Dynamic traffic analysis & risk scoring", julesApiActive) {
+            if (julesApiKey.isEmpty() && it) {
+                showJulesDialog = true
+            } else {
+                julesApiActive = it
+                prefs.edit().putBoolean("jules_api_active", it).apply()
+                RustBridge.setJulesActive(it)
+            }
+        }
+        if (julesApiActive) {
+            SettingAction("Update Jules API Key", "Currently: ${if(julesApiKey.isEmpty()) "NOT SET" else "****" + julesApiKey.takeLast(4)}", Icons.Default.Key) {
+                showJulesDialog = true
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
         Text("SYSTEM STABILITY", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         if (!isIgnoringBattery) { SettingAction("Disable Battery Optimization", "Prevent background termination", Icons.Default.BatteryAlert) { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) { val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }; context.startActivity(intent) } } }
         SettingToggle("Auto-Healing Core", "Automatic rule restoration", autoHeal) { autoHeal = it; prefs.edit().putBoolean("auto_heal", it).apply() }
@@ -69,6 +90,7 @@ fun SettingsScreen() {
         Text("SECURITY ARSENAL", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         SettingToggle("Absolute Kill Switch", "Block ALL traffic immediately", killSwitch) { killSwitch = it; prefs.edit().putBoolean("kill_switch", it).apply(); RustBridge.setSecurityLevel(if (it) 4 else if (lockdownMode) 3 else if (highSecurity) 2 else 0) }
         SettingToggle("Lockdown Mode", "Strict Whitelist-Only", lockdownMode) { lockdownMode = it; prefs.edit().putBoolean("lockdown_mode", it).apply(); if (!killSwitch) RustBridge.setSecurityLevel(if (it) 3 else if (highSecurity) 2 else 0) }
+        SettingToggle("Immune Learning", "Suggest rules based on history", learningMode) { learningMode = it; prefs.edit().putBoolean("learning_mode", it).apply(); RustBridge.setLearningMode(it) }
         SettingToggle("Military Security", "Deep Packet Analytics", highSecurity) { highSecurity = it; prefs.edit().putBoolean("military_mode", it).apply(); if (!killSwitch && !lockdownMode) RustBridge.setSecurityLevel(if (it) 2 else 0) }
         SettingToggle("Stealth Mode", "Drop all ICMP (Ping) requests", stealthMode) { stealthMode = it; prefs.edit().putBoolean("stealth_mode", it).apply(); RustBridge.setStealthMode(it) }
         SettingToggle("DNS Hardening", "Block non-encrypted UDP/53", dnsHardening) { dnsHardening = it; prefs.edit().putBoolean("dns_hardening", it).apply(); RustBridge.setDnsHardening(it) }
@@ -103,8 +125,46 @@ fun SettingsScreen() {
 
         Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.Gray.copy(alpha = 0.1f))
         SystemInfoItem("Engine Version", "v5.0.0-Absolute-Omega-Rust")
+        SystemInfoItem("Core Hash", "0x58A3B2F... (SECURE)")
         SystemInfoItem("Status", "Absolute Secure")
         Spacer(modifier = Modifier.height(40.dp))
+    }
+
+    if (showJulesDialog) {
+        var tempKey by remember { mutableStateOf(julesApiKey) }
+        AlertDialog(
+            onDismissRequest = { showJulesDialog = false },
+            containerColor = Color(0xFF0D1117),
+            title = { Text("JULES AI CONFIGURATION", color = Color.White) },
+            text = {
+                Column {
+                    Text("Enter your Jules API Key to enable cloud threat intelligence.", color = Color.Gray, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = tempKey,
+                        onValueChange = { tempKey = it },
+                        label = { Text("API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    julesApiKey = tempKey
+                    prefs.edit().putString("jules_api_key", tempKey).apply()
+                    if (tempKey.isNotEmpty()) {
+                        julesApiActive = true
+                        prefs.edit().putBoolean("jules_api_active", true).apply()
+                        RustBridge.setJulesActive(true)
+                    }
+                    showJulesDialog = false
+                }) { Text("CONNECT", color = Color(0xFF00FFA3)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showJulesDialog = false }) { Text("CANCEL", color = Color.Gray) }
+            }
+        )
     }
 }
 

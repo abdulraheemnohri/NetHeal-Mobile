@@ -1,11 +1,14 @@
 use std::collections::{HashSet, HashMap};
 use std::time::{Instant, Duration};
-use crate::analyzer::{analyze_threat, detect_anomalies};
+use crate::analyzer::{analyze_threat, detect_anomalies, analyze_behavior};
 
 pub struct AppTraffic {
     pub bytes_sent: u64,
     pub bytes_recv: u64,
     pub packets: u64,
+    pub history_sizes: Vec<usize>,
+    pub history_times: Vec<u64>,
+    pub last_packet: Instant,
 }
 
 pub struct RateLimiter {
@@ -43,9 +46,10 @@ pub struct Firewall {
     observed_domains: HashSet<String>,
 
     last_gc: Instant,
+    cache: HashMap<String, (bool, Instant)>,
 
-    // NEW: Smart Cache
-    cache: HashMap<String, (bool, Instant)>, // Target -> (Allowed, Expiry)
+    jules_api_active: bool,
+    ai_risk_cache: HashMap<String, u8>,
 }
 
 impl Firewall {
@@ -77,6 +81,8 @@ impl Firewall {
             observed_domains: HashSet::new(),
             last_gc: Instant::now(),
             cache: HashMap::new(),
+            jules_api_active: false,
+            ai_risk_cache: HashMap::new(),
         };
         f.load_defaults();
         f
@@ -95,13 +101,14 @@ impl Firewall {
     pub fn set_stealth_mode(&mut self, enabled: bool) { self.stealth_mode = enabled; }
     pub fn set_dns_hardening(&mut self, enabled: bool) { self.dns_hardening = enabled; }
     pub fn set_learning_mode(&mut self, enabled: bool) { self.learning_mode = enabled; }
+    pub fn set_jules_active(&mut self, enabled: bool) { self.jules_api_active = enabled; }
 
     pub fn add_geo_block(&mut self, country: String) { self.geo_blocked_countries.insert(country); }
     pub fn remove_geo_block(&mut self, country: String) { self.geo_blocked_countries.remove(&country); }
     pub fn add_port_block(&mut self, port: u16) { self.blocked_ports.insert(port); }
     pub fn remove_port_block(&mut self, port: u16) { self.blocked_ports.remove(&port); }
 
-    pub fn analyze_packet(&mut self, data: &[u8], dst_ip: &str, protocol: u8, app_id: Option<&str>, domain: Option<&str>) -> bool {
+    pub fn analyze_packet(&mut self, data: &mut [u8], dst_ip: &str, protocol: u8, app_id: Option<&str>, domain: Option<&str>) -> bool {
         self.total_scanned += 1;
         *self.protocol_stats.entry(protocol).or_insert(0) += 1;
 
@@ -109,7 +116,11 @@ impl Firewall {
             self.active_connections.insert(dst_ip.to_string(), (id.to_string(), Instant::now()));
         }
 
-        // Smart Cache Check
+        // System Stealth: Randomize TTL to prevent OS fingerprinting
+        if data.len() > 8 {
+            data[8] = (64 + (self.total_scanned % 32)) as u8;
+        }
+
         let target_key = domain.unwrap_or(dst_ip);
         if let Some((allowed, expiry)) = self.cache.get(target_key) {
             if Instant::now() < *expiry {
@@ -134,6 +145,30 @@ impl Firewall {
         let mut block_reason = None;
 
         if let Some(id) = app_id {
+            let entry = self.app_traffic.entry(id.to_string()).or_insert(AppTraffic {
+                bytes_sent: 0, bytes_recv: 0, packets: 0,
+                history_sizes: Vec::new(), history_times: Vec::new(), last_packet: Instant::now()
+            });
+
+            let elapsed = entry.last_packet.elapsed().as_millis() as u64;
+            entry.history_sizes.push(data.len());
+            entry.history_times.push(elapsed);
+            entry.last_packet = Instant::now();
+
+            if entry.history_sizes.len() > 20 { entry.history_sizes.remove(0); entry.history_times.remove(0); }
+
+            if !self.performance_mode {
+                if let Some((score, _)) = analyze_behavior(&entry.history_sizes, &entry.history_times) {
+                    if score > 80 { block_reason = Some("AI_BEHAVIOR_BLOCK"); }
+                }
+            }
+
+            if self.jules_api_active {
+                if let Some(&risk) = self.ai_risk_cache.get(target_key) {
+                    if risk > 90 { block_reason = Some("JULES_MALWARE_SIGNATURE"); }
+                }
+            }
+
             if let Some(&limit) = self.bandwidth_limits.get(id) {
                 let limiter = self.rate_limiters.entry(id.to_string()).or_insert(RateLimiter { bytes_this_window: 0, last_window: Instant::now() });
                 if limiter.last_window.elapsed() > Duration::from_secs(1) {
@@ -192,9 +227,7 @@ impl Firewall {
             *self.blocked_targets.entry(target).or_insert(0) += 1;
         }
 
-        // Cache result for 60s
         self.cache.insert(target_key.to_string(), (result, Instant::now() + Duration::from_secs(60)));
-
         result
     }
 
@@ -204,11 +237,13 @@ impl Firewall {
         self.rate_limiters.retain(|_, limiter| limiter.last_window.elapsed() < Duration::from_secs(60));
         self.cache.retain(|_, (_, expiry)| now < *expiry);
         self.last_gc = now;
-        println!("🧹 GC: Optimized kernel memory usage");
     }
 
     pub fn record_traffic(&mut self, app_id: &str, bytes: u64, is_sent: bool) {
-        let entry = self.app_traffic.entry(app_id.to_string()).or_insert(AppTraffic { bytes_sent: 0, bytes_recv: 0, packets: 0 });
+        let entry = self.app_traffic.entry(app_id.to_string()).or_insert(AppTraffic {
+            bytes_sent: 0, bytes_recv: 0, packets: 0,
+            history_sizes: Vec::new(), history_times: Vec::new(), last_packet: Instant::now()
+        });
         entry.packets += 1;
         if is_sent { entry.bytes_sent += bytes; } else { entry.bytes_recv += bytes; }
     }
@@ -228,6 +263,7 @@ impl Firewall {
     pub fn unwhitelist_domain(&mut self, d: &str) { self.whitelisted_domains.remove(d); }
     pub fn set_app_state(&mut self, app_id: &str, state: u8) { self.protected_apps.insert(app_id.to_string(), state); }
     pub fn kill_ip(&mut self, ip: &str) { self.kill_list.insert(ip.to_string()); self.active_connections.remove(ip); }
+    pub fn update_ai_risk(&mut self, target: String, risk: u8) { self.ai_risk_cache.insert(target, risk); }
 
     pub fn get_stats(&self) -> (u64, u64) { (self.total_scanned, self.total_blocked) }
     pub fn get_app_usage_json(&self) -> String {
