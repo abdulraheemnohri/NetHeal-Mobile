@@ -51,13 +51,10 @@ class NetHealVpnService : VpnService() {
             builder.setSession("NetHealVpn")
             builder.addAddress("10.0.0.2", 24)
             builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1400) // Optimized for mobile
+            builder.setMtu(1400)
             builder.addDnsServer("10.0.0.2")
 
             val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-            if (prefs.getBoolean("force_ipv4", false)) {
-                // builder logic for IPv4 only is default in addAddress
-            }
 
             serviceScope.launch {
                 val bypass = NetHealApp.database.netHealDao().getBypassApps()
@@ -87,10 +84,12 @@ class NetHealVpnService : VpnService() {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
 
+                    // Allow Rust to mutate packet for Stealth features (e.g. TTL randomization)
                     val allowed = RustBridge.handlePacket(data)
 
-                    if (allowed) { outputStream.write(data, 0, length) }
-                    else {
+                    if (allowed) {
+                        outputStream.write(data, 0, length)
+                    } else {
                         serviceScope.launch { NetHealApp.database.netHealDao().insertLog(ThreatLog(domain = "ABSOLUTE_FILTER_BLOCK", riskScore = 100, action = "DROPPED")) }
                     }
                 }
@@ -100,7 +99,7 @@ class NetHealVpnService : VpnService() {
             Log.e("NetHealVpn", "VPN Loop error", e)
             val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
             if (prefs.getBoolean("kill_switch", true)) {
-                RustBridge.setSecurityLevel(4) // Panic: Kill all if VPN component fails
+                RustBridge.setSecurityLevel(4)
             }
             RustBridge.heal()
         }

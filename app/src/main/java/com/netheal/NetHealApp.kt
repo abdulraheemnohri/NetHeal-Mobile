@@ -55,7 +55,12 @@ class NetHealApp : Application() {
         while (true) {
             RustBridge.recordHeartbeat()
 
-            // Self-Optimization: Battery & Power State
+            // Jules AI Cloud Sync (Simulated)
+            val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+            if (prefs.getBoolean("jules_api_active", false)) {
+                syncJulesThreatIntelligence()
+            }
+
             val batteryStatus: android.content.Intent? = IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
                 registerReceiver(null, ifilter)
             }
@@ -63,12 +68,8 @@ class NetHealApp : Application() {
             val scale: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
             val batteryPct = level * 100 / scale.toFloat()
 
-            val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
             if (batteryPct < 20 && !prefs.getBoolean("performance_mode", false)) {
-                // Auto-enable Performance Mode (Ultra-Stamina) to save battery
                 RustBridge.setPerformanceMode(true)
-            } else if (batteryPct > 30 && !prefs.getBoolean("performance_mode", false)) {
-                RustBridge.setPerformanceMode(false)
             }
 
             val today = LocalDate.now().toString()
@@ -122,6 +123,14 @@ class NetHealApp : Application() {
         }
     }
 
+    private suspend fun syncJulesThreatIntelligence() {
+        // Mock: In a real app, this would poll a secure endpoint for new domain risks
+        val suspiciousTargets = listOf("malware-cnc.io", "tracker.api", "data-leak.net")
+        suspiciousTargets.forEach {
+            RustBridge.updateAiRisk(it, 95) // Mark high risk in kernel cache
+        }
+    }
+
     private suspend fun restoreEngineState() {
         database.netHealDao().getAllRules().forEach { rule ->
             RustBridge.setAppRule(rule.appId, rule.state)
@@ -143,6 +152,7 @@ class NetHealApp : Application() {
         RustBridge.setStealthMode(prefs.getBoolean("stealth_mode", false))
         RustBridge.setDnsHardening(prefs.getBoolean("dns_hardening", false))
         RustBridge.setLearningMode(prefs.getBoolean("learning_mode", false))
+        RustBridge.setJulesActive(prefs.getBoolean("jules_api_active", false))
 
         val dns = prefs.getString("upstream_dns", "Cloudflare") ?: "Cloudflare"
         RustBridge.setUpstreamDns(if (dns == "Cloudflare") "1.1.1.1" else if (dns == "AdGuard") "94.140.14.14" else "8.8.8.8")

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ThreatType {
     Normal,
     Bot,
@@ -13,7 +13,8 @@ pub enum ThreatType {
     CryptoMining,
     Spyware,
     Tracking,
-    InsecureHTTP
+    InsecureHTTP,
+    BehavioralAnomaly
 }
 
 pub struct ThreatReport {
@@ -72,9 +73,6 @@ pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
         return Some((95, ThreatType::Malformed));
     }
 
-    // Detect insecure HTTP (Port 80)
-    // IP Offset 9: Protocol (6=TCP, 17=UDP)
-    // TCP header starts at IHV*4. Dest port is bytes 2-3 of TCP header.
     let ihl = (data[0] & 0x0F) as usize * 4;
     if data.len() > ihl + 4 && data[9] == 6 {
         let d_port = ((data[ihl+2] as u16) << 8) | data[ihl+3] as u16;
@@ -88,6 +86,28 @@ pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
     }
 
     if data.len() > 1500 { return Some((70, ThreatType::Malformed)); }
+
+    None
+}
+
+/// Behavioral analysis: Fingerprint traffic by packet size and timing patterns
+pub fn analyze_behavior(packet_sizes: &[usize], inter_arrival_times: &[u64]) -> Option<(u8, String)> {
+    if packet_sizes.len() < 5 { return None; }
+
+    // Simple fingerprinting mock: detect repeated small packet bursts (heartbeat/C2)
+    let avg_size: usize = packet_sizes.iter().sum::<usize>() / packet_sizes.len();
+    if avg_size < 100 && packet_sizes.len() > 10 {
+        // High frequency small packets might be a background leak or tracking
+        return Some((60, "SMALL_BURST_BEHAVIOR".to_string()));
+    }
+
+    // Detect high variance in inter-arrival times (potential automated bot)
+    if inter_arrival_times.len() > 5 {
+        let avg_time: u64 = inter_arrival_times.iter().sum::<u64>() / inter_arrival_times.len() as u64;
+        if avg_time < 50 {
+            return Some((75, "HIGH_FREQ_AUTOMATION".to_string()));
+        }
+    }
 
     None
 }

@@ -16,6 +16,8 @@ object RustBridge {
     external fun setStealthMode(enabled: Boolean)
     external fun setDnsHardening(enabled: Boolean)
     external fun setLearningMode(enabled: Boolean)
+    external fun setJulesActive(enabled: Boolean)
+    external fun updateAiRisk(target: String, risk: Int)
     external fun setAppRule(appId: String, state: Int)
     external fun setAppBwLimit(appId: String, limit: Long)
     external fun getBlockedCount(): Long

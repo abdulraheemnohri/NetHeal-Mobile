@@ -91,7 +91,6 @@ fun LogsScreen() {
     }
 }
 
-data class UsageInfo(val sent: Long, val recv: Long, val packets: Long)
 
 @Composable
 fun TrafficUsageCard(pkg: String, info: UsageInfo) {
@@ -113,7 +112,6 @@ fun TrafficUsageCard(pkg: String, info: UsageInfo) {
     }
 }
 
-fun formatSize(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024f)
     return String.format("%.1f MB", bytes / (1024f * 1024f))
