@@ -42,6 +42,11 @@ fun TacticalCommandDeck() {
         CorePerformanceMonitor()
 
         Spacer(modifier = Modifier.height(24.dp))
+        Text("PREDICTIVE THREAT FORECASTER", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        PredictiveThreatForecaster()
+
+        Spacer(modifier = Modifier.height(24.dp))
         Text("REAL-TIME THREAT MAP", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         ThreatOriginMap()
@@ -66,6 +71,22 @@ fun TacticalCommandDeck() {
         if (showLanScanner) LanScannerDialog(onDismiss = { showLanScanner = false })
 
         Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun PredictiveThreatForecaster() {
+    val forecast = listOf("14:00 - Data Exfiltration Prob: 12%", "18:00 - Port Scan Vulnerability: High", "22:00 - C2 Callback Pattern Spike", "02:00 - Background Sync Hazard: 45%")
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            forecast.forEach { item ->
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(4.dp).background(Color(0xFF00FFA3), CircleShape))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(item, color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+        }
     }
 }
 
