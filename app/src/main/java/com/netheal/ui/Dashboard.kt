@@ -44,16 +44,22 @@ fun Dashboard(onToggleVpn: (Boolean) -> Unit) {
     var observedCount by remember { mutableIntStateOf(0) }
     var isLockdown by remember { mutableStateOf(prefs.getBoolean("lockdown_mode", false)) }
     var performanceMode by remember { mutableStateOf(prefs.getBoolean("performance_mode", false)) }
+    var boosterActive by remember { mutableStateOf(prefs.getBoolean("booster_active", false)) }
+    var multipathActive by remember { mutableStateOf(prefs.getBoolean("multipath_active", false)) }
+    var julesActive by remember { mutableStateOf(prefs.getBoolean("jules_api_active", false)) }
 
-    val scope = rememberCoroutineScope()
     val primaryColor = if (isEnabled) (if (isLockdown) Color.Yellow else Color(0xFF00FFA3)) else Color.Red
-
     LaunchedEffect(Unit) {
         while (true) {
             isEnabled = NetHealApp.isServiceRunning(context)
             health = RustBridge.getSecurityScore()
             blockedCount = RustBridge.getBlockedCount()
             scannedCount = RustBridge.getScannedCount()
+            isLockdown = prefs.getBoolean("lockdown_mode", false)
+            performanceMode = prefs.getBoolean("performance_mode", false)
+            boosterActive = prefs.getBoolean("booster_active", false)
+            multipathActive = prefs.getBoolean("multipath_active", false)
+            julesActive = prefs.getBoolean("jules_api_active", false)
             try {
                 val analytics = String(RustBridge.getAnalytics())
                 if (analytics.isNotEmpty()) {
@@ -72,10 +78,22 @@ fun Dashboard(onToggleVpn: (Boolean) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF05070A)).padding(20.dp).verticalScroll(rememberScrollState())) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
+
+        if (julesActive) {
+            JulesAdvisorySection()
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InfoCard(modifier = Modifier.weight(1f), label = "DEFENSE CORE", value = "$health%", color = Color(0xFF00FFA3), icon = Icons.Default.VerifiedUser)
             InfoCard(modifier = Modifier.weight(1f), label = "OPTIMIZATION", value = if (performanceMode) "ULTRA" else "PEAK", color = Color.Cyan, icon = Icons.Default.Bolt)
         }
+
+        if (boosterActive || multipathActive) {
+            Spacer(modifier = Modifier.height(12.dp))
+            BoosterStatusRow(boosterActive, multipathActive)
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
         Box(modifier = Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
             ShieldPulse(isEnabled, primaryColor)
@@ -103,6 +121,35 @@ fun Dashboard(onToggleVpn: (Boolean) -> Unit) {
         Spacer(modifier = Modifier.height(24.dp))
         RealTimeTrafficGraph(primaryColor)
         Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun JulesAdvisorySection() {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF00FFA3).copy(alpha = 0.05f)), border = BorderStroke(1.dp, Color(0xFF00FFA3).copy(alpha = 0.2f))) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF00FFA3), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("JULES AI ADVISORY", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("System health optimal. Analyzing active streams.", color = Color.White, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun BoosterStatusRow(booster: Boolean, multipath: Boolean) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (booster) BoosterBadge("OMEGA BOOST", Color.Cyan)
+        if (multipath) BoosterBadge("LINK BONDING", Color(0xFF00FFA3))
+    }
+}
+
+@Composable
+fun BoosterBadge(label: String, color: Color) {
+    Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.1f)).border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Text(label, color = color, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
 

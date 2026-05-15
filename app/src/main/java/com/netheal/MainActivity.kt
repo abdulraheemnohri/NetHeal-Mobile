@@ -14,10 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.*
 import androidx.navigation.*
-import com.netheal.ui.Dashboard
-import com.netheal.ui.FirewallScreen
-import com.netheal.ui.SettingsScreen
-import com.netheal.ui.TacticalCommandDeck
+import com.netheal.ui.*
 import com.netheal.vpn.NetHealVpnService
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +41,12 @@ class MainActivity : ComponentActivity() {
                             onClick = { navController.navigate("firewall") }
                         )
                         NavigationBarItem(
+                            icon = { Icon(Icons.Default.VerifiedUser, null) },
+                            label = { Text("AUDIT") },
+                            selected = currentRoute == "audit",
+                            onClick = { navController.navigate("audit") }
+                        )
+                        NavigationBarItem(
                             icon = { Icon(Icons.Default.Radar, null) },
                             label = { Text("TACTICAL") },
                             selected = currentRoute == "tactical",
@@ -61,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 NavHost(navController, startDestination = "dashboard", modifier = Modifier.padding(padding)) {
                     composable("dashboard") { Dashboard { enabled -> toggleVpn(enabled) } }
                     composable("firewall") { FirewallScreen() }
+                    composable("audit") { SecurityAuditSection() }
                     composable("tactical") { TacticalCommandDeck() }
                     composable("settings") { SettingsScreen() }
                 }
