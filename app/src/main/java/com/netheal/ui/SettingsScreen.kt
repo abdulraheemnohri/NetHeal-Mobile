@@ -29,6 +29,9 @@ import com.netheal.data.WhitelistEntry
 import com.netheal.data.BlacklistEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,9 +42,13 @@ fun SettingsScreen() {
     var highSecurity by remember { mutableStateOf(prefs.getBoolean("military_mode", false)) }
     var lockdownMode by remember { mutableStateOf(prefs.getBoolean("lockdown_mode", false)) }
     var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
-    var killSwitchAuto by remember { mutableStateOf(prefs.getBoolean("kill_switch_auto", true)) }
-    var stealthMode by remember { mutableStateOf(prefs.getBoolean("stealth_mode", false)) }
+    var performanceMode by remember { mutableStateOf(prefs.getBoolean("performance_mode", false)) }
     var upstreamDns by remember { mutableStateOf(prefs.getString("upstream_dns", "Cloudflare") ?: "Cloudflare") }
+    var forceIpv4 by remember { mutableStateOf(prefs.getBoolean("force_ipv4", false)) }
+    var blockLan by remember { mutableStateOf(prefs.getBoolean("block_lan", false)) }
+    var stealthMode by remember { mutableStateOf(prefs.getBoolean("stealth_mode", false)) }
+    var dnsHardening by remember { mutableStateOf(prefs.getBoolean("dns_hardening", false)) }
+
     val scope = rememberCoroutineScope()
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val isIgnoringBattery = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -56,17 +63,21 @@ fun SettingsScreen() {
         Text("SYSTEM STABILITY", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         if (!isIgnoringBattery) { SettingAction("Disable Battery Optimization", "Prevent background termination", Icons.Default.BatteryAlert) { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) { val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }; context.startActivity(intent) } } }
         SettingToggle("Auto-Healing Core", "Automatic rule restoration", autoHeal) { autoHeal = it; prefs.edit().putBoolean("auto_heal", it).apply() }
-        SettingToggle("Stealth Mode", "Hide protection presence", stealthMode) { stealthMode = it; prefs.edit().putBoolean("stealth_mode", it).apply() }
+        SettingToggle("Ultra-Stamina Mode", "Energy-efficient engine", performanceMode) { performanceMode = it; prefs.edit().putBoolean("performance_mode", it).apply(); RustBridge.setPerformanceMode(it) }
 
         Spacer(modifier = Modifier.height(24.dp))
         Text("SECURITY ARSENAL", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         SettingToggle("Absolute Kill Switch", "Block ALL traffic immediately", killSwitch) { killSwitch = it; prefs.edit().putBoolean("kill_switch", it).apply(); RustBridge.setSecurityLevel(if (it) 4 else if (lockdownMode) 3 else if (highSecurity) 2 else 0) }
-        SettingToggle("Kill Switch Auto-Trigger", "Active if VPN is disrupted", killSwitchAuto) { killSwitchAuto = it; prefs.edit().putBoolean("kill_switch_auto", it).apply() }
         SettingToggle("Lockdown Mode", "Strict Whitelist-Only", lockdownMode) { lockdownMode = it; prefs.edit().putBoolean("lockdown_mode", it).apply(); if (!killSwitch) RustBridge.setSecurityLevel(if (it) 3 else if (highSecurity) 2 else 0) }
         SettingToggle("Military Security", "Deep Packet Analytics", highSecurity) { highSecurity = it; prefs.edit().putBoolean("military_mode", it).apply(); if (!killSwitch && !lockdownMode) RustBridge.setSecurityLevel(if (it) 2 else 0) }
+        SettingToggle("Stealth Mode", "Drop all ICMP (Ping) requests", stealthMode) { stealthMode = it; prefs.edit().putBoolean("stealth_mode", it).apply(); RustBridge.setStealthMode(it) }
+        SettingToggle("DNS Hardening", "Block non-encrypted UDP/53", dnsHardening) { dnsHardening = it; prefs.edit().putBoolean("dns_hardening", it).apply(); RustBridge.setDnsHardening(it) }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("NETWORK UPSTREAM", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("CONNECTIVITY PRO", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        SettingToggle("Force IPv4 Only", "Disable IPv6 for compatibility", forceIpv4) { forceIpv4 = it; prefs.edit().putBoolean("force_ipv4", it).apply() }
+        SettingToggle("Block LAN Access", "Isolate device from local network", blockLan) { blockLan = it; prefs.edit().putBoolean("block_lan", it).apply() }
+
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("DNS Resolver", color = Color.White, fontSize = 15.sp)
             Text(upstreamDns, color = Color(0xFF00FFA3), fontSize = 13.sp, modifier = Modifier.clickable {
@@ -79,6 +90,14 @@ fun SettingsScreen() {
         Spacer(modifier = Modifier.height(32.dp))
         Text("OMEGA TOOLS", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         SettingAction("Absolute Audit", "Full system link test", Icons.Default.NetworkCheck) { val res = String(RustBridge.runDiagnostics()); Toast.makeText(context, res, Toast.LENGTH_LONG).show() }
+        SettingAction("Backup Policies", "Export rules to JSON", Icons.Default.Backup) {
+            scope.launch(Dispatchers.IO) {
+                val rules = NetHealApp.database.netHealDao().getAllRules()
+                val json = JSONArray()
+                rules.forEach { r -> val obj = JSONObject(); obj.put("id", r.appId); obj.put("s", r.state); json.put(obj) }
+                withContext(Dispatchers.Main) { Toast.makeText(context, "Exported ${rules.size} policies", Toast.LENGTH_SHORT).show() }
+            }
+        }
         SettingAction("Wipe Telemetry", "Clear scanning stats", Icons.Default.BarChart) { RustBridge.resetStats(); Toast.makeText(context, "Telemetry reset", Toast.LENGTH_SHORT).show() }
         SettingAction("Nuke Rules", "Reset all isolation states", Icons.Default.DeleteForever) { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().getAllRules().forEach { RustBridge.setAppRule(it.appId, 0); NetHealApp.database.netHealDao().saveRule(FirewallRule(it.appId, 0, 0)) } }; Toast.makeText(context, "Rules purged", Toast.LENGTH_SHORT).show() }
 

@@ -15,7 +15,15 @@ data class ThreatLog(
 data class FirewallRule(
     @PrimaryKey val appId: String,
     val state: Int, // 0: Allowed, 1: WiFi-Only, 2: Blocked
-    val bwLimit: Long = 0 // 0 means no limit
+    val bwLimit: Long = 0
+)
+
+@Entity(tableName = "ssid_rules")
+data class SsidRule(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val ssid: String,
+    val appId: String,
+    val blockOnSsid: Boolean
 )
 
 @Entity(tableName = "bypass_apps")
@@ -42,14 +50,35 @@ data class CustomRule(
     val description: String = ""
 )
 
+@Entity(tableName = "port_rules")
+data class PortRule(
+    @PrimaryKey val port: Int,
+    val isBlocked: Boolean,
+    val description: String = ""
+)
+
+@Entity(tableName = "geo_rules")
+data class GeoRule(
+    @PrimaryKey val countryIso: String,
+    val isBlocked: Boolean
+)
+
 @Entity(tableName = "schedules")
 data class Schedule(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
-    val startTime: String, // HH:mm
+    val startTime: String,
     val endTime: String,
-    val profileLevel: Int, // Level to set
+    val profileLevel: Int,
     val isActive: Boolean = true
+)
+
+@Entity(tableName = "hourly_usage")
+data class HourlyUsage(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val hour: Long,
+    val sent: Long,
+    val recv: Long
 )
 
 @Entity(tableName = "usage_stats")
@@ -67,8 +96,6 @@ interface NetHealDao {
     suspend fun insertLog(log: ThreatLog)
     @Query("DELETE FROM threat_logs")
     suspend fun deleteAllLogs()
-    @Query("DELETE FROM threat_logs WHERE timestamp < :timestamp")
-    suspend fun deleteLogsOlderThan(timestamp: Long)
 
     @Query("SELECT * FROM firewall_rules")
     suspend fun getAllRules(): List<FirewallRule>
@@ -77,12 +104,28 @@ interface NetHealDao {
     @Query("SELECT * FROM firewall_rules WHERE appId = :appId")
     suspend fun getRule(appId: String): FirewallRule?
 
-    @Query("SELECT * FROM bypass_apps")
-    suspend fun getBypassApps(): List<BypassApp>
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun addBypassApp(app: BypassApp)
+    @Query("SELECT * FROM ssid_rules")
+    suspend fun getAllSsidRules(): List<SsidRule>
+    @Query("SELECT * FROM ssid_rules WHERE ssid = :ssid")
+    suspend fun getRulesForSsid(ssid: String): List<SsidRule>
+    @Insert
+    suspend fun insertSsidRule(rule: SsidRule)
     @Delete
-    suspend fun removeBypassApp(app: BypassApp)
+    suspend fun deleteSsidRule(rule: SsidRule)
+
+    @Query("SELECT * FROM port_rules")
+    suspend fun getAllPortRules(): List<PortRule>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun savePortRule(rule: PortRule)
+    @Delete
+    suspend fun deletePortRule(rule: PortRule)
+
+    @Query("SELECT * FROM geo_rules")
+    suspend fun getAllGeoRules(): List<GeoRule>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveGeoRule(rule: GeoRule)
+    @Delete
+    suspend fun deleteGeoRule(rule: GeoRule)
 
     @Query("SELECT * FROM whitelist")
     suspend fun getWhitelist(): List<WhitelistEntry>
@@ -112,13 +155,21 @@ interface NetHealDao {
     @Delete
     suspend fun deleteSchedule(s: Schedule)
 
+    @Query("SELECT * FROM hourly_usage ORDER BY hour DESC LIMIT 24")
+    suspend fun getRecentHourly(): List<HourlyUsage>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateHourly(usage: HourlyUsage)
+
     @Query("SELECT * FROM usage_stats WHERE day = :day")
     suspend fun getStatsForDay(day: String): UsageStats?
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateStats(stats: UsageStats)
+
+    @Query("SELECT * FROM bypass_apps")
+    suspend fun getBypassApps(): List<BypassApp>
 }
 
-@Database(entities = [ThreatLog::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, UsageStats::class], version = 10)
+@Database(entities = [ThreatLog::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, HourlyUsage::class, UsageStats::class, SsidRule::class, PortRule::class, GeoRule::class], version = 13)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }
