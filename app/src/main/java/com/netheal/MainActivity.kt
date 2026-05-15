@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.compose.material3.Text
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -14,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.*
+import androidx.navigation.*
 import com.netheal.ui.Dashboard
 import com.netheal.ui.FirewallScreen
 import com.netheal.ui.SettingsScreen
@@ -71,15 +71,15 @@ class MainActivity : ComponentActivity() {
     private fun toggleVpn(enabled: Boolean) {
         val intent = VpnService.prepare(this)
         if (intent != null) {
-            startActivityForResult(intent, 0)
+            startActivityForResult(intent, 100)
         } else {
-            onActivityResult(0, RESULT_OK, null)
+            onActivityResult(100, RESULT_OK, null)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode == RESULT_OK) {
+        if (requestCode == 100 && resultCode == RESULT_OK) {
             val intent = Intent(this, NetHealVpnService::class.java)
             startService(intent)
         }

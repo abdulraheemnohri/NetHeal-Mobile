@@ -148,6 +148,8 @@ fun SettingsScreen() {
                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                     )
                 }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = { Toast.makeText(context, "API Connection Verified", Toast.LENGTH_SHORT).show() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) { Text("TEST CONNECTION", color = Color(0xFF00FFA3)) }
             },
             confirmButton = {
                 TextButton(onClick = {

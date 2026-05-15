@@ -1,6 +1,8 @@
 package com.netheal.ui
 
 import androidx.compose.foundation.*
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
