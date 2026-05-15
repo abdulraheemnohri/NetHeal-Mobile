@@ -381,3 +381,33 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setMultipathActive(
     let mut engine = ENGINE.lock().unwrap();
     engine.set_multipath_active(enabled != 0);
 }
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setNeuralShield(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_neural_shield(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setBufferSize(
+    _env: JNIEnv,
+    _class: JClass,
+    size: jint,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_buffer_size(size as u32);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setShapingMode(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_shaping_mode(enabled != 0);
+}

@@ -1,5 +1,6 @@
 package com.netheal.ui
 
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -49,6 +50,7 @@ fun Dashboard(onToggleVpn: (Boolean) -> Unit) {
     var julesActive by remember { mutableStateOf(prefs.getBoolean("jules_api_active", false)) }
 
     val primaryColor = if (isEnabled) (if (isLockdown) Color.Yellow else Color(0xFF00FFA3)) else Color.Red
+
     LaunchedEffect(Unit) {
         while (true) {
             isEnabled = NetHealApp.isServiceRunning(context)
@@ -101,6 +103,11 @@ fun Dashboard(onToggleVpn: (Boolean) -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(if (isEnabled) Icons.Default.Shield else Icons.Default.ShieldMoon, contentDescription = null, tint = primaryColor, modifier = Modifier.size(40.dp))
                     Text(if (isEnabled) "SECURE" else "OFFLINE", color = primaryColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (isEnabled) {
+                IconButton(onClick = { RustBridge.setSecurityLevel(0); Toast.makeText(context, "Master Protection Deactivated", Toast.LENGTH_SHORT).show() }, modifier = Modifier.align(Alignment.TopEnd)) {
+                   Icon(Icons.Default.PowerSettingsNew, contentDescription = "Deactivate", tint = Color.Gray.copy(alpha = 0.5f))
                 }
             }
         }
