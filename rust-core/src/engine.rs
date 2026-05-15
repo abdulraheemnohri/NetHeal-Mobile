@@ -1,10 +1,12 @@
 use crate::firewall::Firewall;
 use crate::healer::Healer;
+use crate::booster::Booster;
 use crate::packet::{parse_v4, parse_dns_query, parse_sni};
 
 pub struct Engine {
     firewall: Firewall,
     healer: Healer,
+    booster: Booster,
     security_level: u8,
     dns_pool: Vec<String>,
     dns_idx: usize,
@@ -16,6 +18,7 @@ impl Engine {
         Engine {
             firewall: Firewall::new(),
             healer: Healer::new(),
+            booster: Booster::new(),
             security_level: 0,
             dns_pool: vec!["1.1.1.1".to_string(), "8.8.8.8".to_string(), "9.9.9.9".to_string()],
             dns_idx: 0,
@@ -27,10 +30,15 @@ impl Engine {
         if !self.healer.check_watchdog() { return false; }
 
         if let Some(info) = parse_v4(data) {
+            // APPLY BOOSTER OPTIMIZATION
+            self.booster.optimize_packet(data);
+
+            // LINK BONDING (MOCK: in a real implementation, this would mark the packet for a specific network interface)
+            let _path = self.booster.handle_link_bonding();
+
             let mut domain = None;
             if info.protocol == 17 {
                 domain = parse_dns_query(&info.payload);
-                // DNS Entropy: Rotate upstream DNS for every query
                 self.dns_idx = (self.dns_idx + 1) % self.dns_pool.len();
             }
             else if info.protocol == 6 { domain = parse_sni(&info.payload); }
@@ -51,7 +59,6 @@ impl Engine {
     pub fn set_profile(&mut self, profile: &str) { self.firewall.set_profile(profile); }
 
     pub fn set_upstream_dns(&mut self, dns: &str) {
-        // If single DNS provided, put it first, but keep pool for entropy
         self.dns_pool.insert(0, dns.to_string());
         if self.dns_pool.len() > 5 { self.dns_pool.pop(); }
     }
@@ -64,6 +71,9 @@ impl Engine {
     pub fn set_dns_hardening(&mut self, enabled: bool) { self.firewall.set_dns_hardening(enabled); }
     pub fn set_learning_mode(&mut self, enabled: bool) { self.firewall.set_learning_mode(enabled); }
     pub fn set_jules_active(&mut self, enabled: bool) { self.firewall.set_jules_active(enabled); }
+
+    pub fn set_booster_active(&mut self, enabled: bool) { self.booster.booster_active = enabled; }
+    pub fn set_multipath_active(&mut self, enabled: bool) { self.booster.multipath_active = enabled; }
 
     pub fn set_app_bw_limit(&mut self, app_id: &str, limit: u64) { self.firewall.set_app_bandwidth_limit(app_id, limit); }
     pub fn set_app_rule(&mut self, app_id: &str, state: u8) { self.firewall.set_app_state(app_id, state); }
@@ -96,7 +106,7 @@ impl Engine {
     }
 
     pub fn check_health(&self) -> u8 { if self.security_level >= 2 { 100 } else if self.security_level == 1 { 90 } else { 80 } }
-    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: OMEGA, DPI: ACTIVE, DNS_POOL: {}, WATCHDOG: ACTIVE", self.dns_pool.len()) }
+    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: OMEGA, BOOST: {}, DPI: ACTIVE, WATCHDOG: ACTIVE", self.booster.booster_active) }
     pub fn heal(&mut self) { Healer::repair_rules(); self.firewall.reset_rules(); }
     pub fn reset_stats(&mut self) { self.firewall.reset_stats(); }
 }

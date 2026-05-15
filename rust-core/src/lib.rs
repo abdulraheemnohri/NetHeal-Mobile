@@ -4,6 +4,7 @@ use jni::JNIEnv;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 
+mod booster;
 mod engine;
 mod firewall;
 mod analyzer;
@@ -359,4 +360,24 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_runDiagnostics(
     let diag = engine.run_diagnostics();
     let array = env.byte_array_from_slice(diag.as_bytes()).unwrap();
     array.as_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setBoosterActive(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_booster_active(enabled != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setMultipathActive(
+    _env: JNIEnv,
+    _class: JClass,
+    enabled: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_multipath_active(enabled != 0);
 }

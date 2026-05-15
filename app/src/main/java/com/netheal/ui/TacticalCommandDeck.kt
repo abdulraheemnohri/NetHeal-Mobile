@@ -1,116 +1,89 @@
 package com.netheal.ui
 
-import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.netheal.bridge.RustBridge
+import androidx.compose.ui.geometry.Offset
+import com.netheal.NetHealApp
+import com.netheal.data.HourlyUsage
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import org.json.JSONObject
 
 @Composable
 fun TacticalCommandDeck() {
-    var packets by remember { mutableStateOf(listOf<PacketFlow>()) }
-    val scope = rememberCoroutineScope()
+    var history by remember { mutableStateOf(listOf<HourlyUsage>()) }
+    var showDnsTool by remember { mutableStateOf(false) }
+    var showPingTool by remember { mutableStateOf(false) }
+    var showWhoisTool by remember { mutableStateOf(false) }
+    var showLanScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            try {
-                val analytics = String(RustBridge.getAnalytics())
-                if (analytics.isNotEmpty()) {
-                    val json = JSONObject(analytics)
-                    val conns = json.getJSONArray("conns")
-                    val newList = mutableListOf<PacketFlow>()
-                    for (i in 0 until conns.length()) {
-                        val obj = conns.getJSONObject(i)
-                        newList.add(PacketFlow(obj.getString("t"), obj.getString("a"), (Math.random() * 1500).toInt(), "TCP"))
-                    }
-                    packets = (newList + packets).take(20)
-                }
-            } catch (e: Exception) {}
-            delay(1000)
+            history = NetHealApp.database.netHealDao().getRecentHourly()
+            delay(5000)
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF010409)).padding(16.dp)) {
-        Text("TACTICAL COMMAND DECK", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF010409)).padding(16.dp).verticalScroll(rememberScrollState())) {
+        Header()
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Card(modifier = Modifier.fillMaxWidth().height(200.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
-            Box(modifier = Modifier.padding(16.dp)) {
-                Text("GLOBAL ATTACK GLOBE", color = Color.Gray, fontSize = 8.sp)
-                AttackGlobe()
-            }
-        }
+        Text("REAL-TIME THREAT MAP", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        ThreatOriginMap()
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("LIVE PACKET STREAM (3D DEPTH)", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("HISTORICAL TRAFFIC (24H)", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
+        HistoricalTrafficChart(history)
 
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            itemsIndexed(packets) { index, packet ->
-                PacketStreamItem(packet, index)
-            }
-        }
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("DIAGNOSTIC ARSENAL", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        DiagnosticTool("DNS Resolver", "Resolve hostname to IP", Icons.Default.Language) { showDnsTool = true }
+        DiagnosticTool("Ping Utility", "Test host reachability", Icons.Default.TapAndPlay) { showPingTool = true }
+        DiagnosticTool("Whois Probe", "Fetch domain ownership", Icons.Default.Info) { showWhoisTool = true }
+        DiagnosticTool("LAN Discovery", "Map local network nodes", Icons.Default.SettingsEthernet) { showLanScanner = true }
+
+        if (showDnsTool) DnsToolDialog(onDismiss = { showDnsTool = false })
+        if (showPingTool) PingToolDialog(onDismiss = { showPingTool = false })
+        if (showWhoisTool) WhoisToolDialog(onDismiss = { showWhoisTool = false })
+        if (showLanScanner) LanScannerDialog(onDismiss = { showLanScanner = false })
+
+        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 
 @Composable
-fun AttackGlobe() {
-    val infiniteTransition = rememberInfiniteTransition(label = "globe")
-    val rotation by infiniteTransition.animateFloat(initialValue = 0f, targetValue = 360f, animationSpec = infiniteRepeatable(animation = tween(20000, easing = LinearEasing)), label = "rotation")
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val center = center
-        val radius = size.height * 0.4f
-        drawCircle(color = Color.Cyan.copy(alpha = 0.1f), radius = radius, center = center, style = Stroke(width = 2f))
-
-        // Grid lines
-        for (i in 0 until 18) {
-            val angle = i * 20f
-            drawArc(color = Color.Gray.copy(alpha = 0.1f), startAngle = angle, sweepAngle = 2f, useCenter = true, style = Stroke(width = 1f))
+fun ThreatOriginMap() {
+    val blockLocations = remember { mutableStateListOf<Offset>() }
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (blockLocations.size > 8) blockLocations.removeAt(0)
+            blockLocations.add(Offset((Math.random() * 800).toFloat(), (Math.random() * 300).toFloat()))
+            delay(3000)
         }
     }
-}
-
-@Composable
-fun PacketStreamItem(p: PacketFlow, index: Int) {
-    val alpha = (1f - (index * 0.05f)).coerceAtLeast(0.2f)
-    val scale = (1f - (index * 0.02f)).coerceAtLeast(0.8f)
-
-    Card(
-        modifier = Modifier.fillMaxWidth().graphicsLayer(alpha = alpha, scaleX = scale, scaleY = scale),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
-        border = BorderStroke(1.dp, Color(0xFF00FFA3).copy(alpha = 0.1f))
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(6.dp).background(Color(0xFF00FFA3), CircleShape))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(p.target, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("${p.appId} • ${p.protocol}", color = Color.Gray, fontSize = 9.sp)
+    Card(modifier = Modifier.fillMaxWidth().height(160.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawLine(Color.Gray.copy(alpha = 0.1f), Offset(0f, size.height/2), Offset(size.width, size.height/2))
+                drawLine(Color.Gray.copy(alpha = 0.1f), Offset(size.width/2, 0f), Offset(size.width/2, size.height))
+                blockLocations.forEach { loc ->
+                    drawCircle(Color.Red.copy(alpha = 0.4f), 10f, loc)
+                    drawCircle(Color.Red, 3f, loc)
+                }
             }
-            Text("${p.size}B", color = Color.Cyan, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            Text("GLOBAL INTERCEPTIONS", modifier = Modifier.padding(12.dp), color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
-
-data class PacketFlow(val target: String, val appId: String, val size: Int, val protocol: String)
