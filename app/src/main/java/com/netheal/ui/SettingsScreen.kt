@@ -51,6 +51,11 @@ fun SettingsScreen() {
     var learningMode by remember { mutableStateOf(prefs.getBoolean("learning_mode", false)) }
     var julesApiActive by remember { mutableStateOf(prefs.getBoolean("jules_api_active", false)) }
     var julesApiKey by remember { mutableStateOf(prefs.getString("jules_api_key", "") ?: "") }
+
+    // BOOSTER STATES
+    var boosterActive by remember { mutableStateOf(prefs.getBoolean("booster_active", false)) }
+    var multipathActive by remember { mutableStateOf(prefs.getBoolean("multipath_active", false)) }
+
     var showJulesDialog by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
@@ -64,6 +69,19 @@ fun SettingsScreen() {
         Text("ABSOLUTE OMEGA CONFIGURATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(30.dp))
 
+        Text("NETWORK ACCELERATION", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        SettingToggle("Internet Omega Booster", "TCP optimization & packet acceleration", boosterActive) {
+            boosterActive = it
+            prefs.edit().putBoolean("booster_active", it).apply()
+            RustBridge.setBoosterActive(it)
+        }
+        SettingToggle("Link Bonding (WiFi+SIM)", "Combine all active data paths for max speed", multipathActive) {
+            multipathActive = it
+            prefs.edit().putBoolean("multipath_active", it).apply()
+            RustBridge.setMultipathActive(it)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
         Text("AI THREAT INTELLIGENCE", color = Color(0xFF00FFA3), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         SettingToggle("Jules AI Integration", "Dynamic traffic analysis & risk scoring", julesApiActive) {
             if (julesApiKey.isEmpty() && it) {
@@ -147,9 +165,9 @@ fun SettingsScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                     )
-                }
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(onClick = { Toast.makeText(context, "API Connection Verified", Toast.LENGTH_SHORT).show() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) { Text("TEST CONNECTION", color = Color(0xFF00FFA3)) }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

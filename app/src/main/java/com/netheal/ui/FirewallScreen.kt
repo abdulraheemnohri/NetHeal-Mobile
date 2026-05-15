@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,9 +85,9 @@ fun FirewallScreen() {
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
                 0 -> AppIsolationSection()
-                1 -> CustomRulesSection(customRules, portRules, geoRules, ::updateData)
-                2 -> GlobalListsSection(whitelist, blacklist, ::updateData)
-                3 -> WifiSecuritySection(schedules, ssidRules, ::updateData)
+                1 -> CustomRulesSection(customRules, portRules, geoRules) { updateData() }
+                2 -> GlobalListsSection(whitelist, blacklist) { updateData() }
+                3 -> WifiSecuritySection(schedules, ssidRules) { updateData() }
                 4 -> IntelligenceSection()
                 5 -> LogsScreen()
             }
@@ -96,6 +97,9 @@ fun FirewallScreen() {
 
 @Composable
 fun IntelligenceSection() {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("netheal_prefs", android.content.Context.MODE_PRIVATE)
+    val julesActive = prefs.getBoolean("jules_api_active", false)
     var isSyncing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -108,7 +112,7 @@ fun IntelligenceSection() {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("DETECTION ENGINE STATUS", color = Color.Gray, fontSize = 9.sp)
-                        Text(if (isSyncing) "AI ANALYZING..." else "JULES ACTIVE", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(if (isSyncing) "AI ANALYZING..." else if (julesActive) "JULES ACTIVE" else "JULES OFFLINE", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                     IconButton(onClick = { scope.launch { isSyncing = true; delay(2000); isSyncing = false } }) {
                         Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF00FFA3))
@@ -137,7 +141,7 @@ fun IntelligenceSection() {
 @Composable
 fun IntelItem(title: String, desc: String, level: String) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(8.dp).background(if (level == "CRITICAL") Color.Red else if (level == "WARNING") Color.Yellow else Color(0xFF00FFA3), CircleShape))
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {

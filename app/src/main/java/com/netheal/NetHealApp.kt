@@ -129,6 +129,8 @@ class NetHealApp : Application() {
         val batteryPct = level * 100 / scale.toFloat()
         if (batteryPct < 15 && !prefs.getBoolean("performance_mode", false)) {
             RustBridge.setPerformanceMode(true) // Auto-trigger Stamina Mode
+        RustBridge.setBoosterActive(prefs.getBoolean("booster_active", false))
+        RustBridge.setMultipathActive(prefs.getBoolean("multipath_active", false))
         }
     }
 
@@ -173,6 +175,8 @@ class NetHealApp : Application() {
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
         RustBridge.setJulesActive(prefs.getBoolean("jules_api_active", false))
         RustBridge.setPerformanceMode(prefs.getBoolean("performance_mode", false))
+        RustBridge.setBoosterActive(prefs.getBoolean("booster_active", false))
+        RustBridge.setMultipathActive(prefs.getBoolean("multipath_active", false))
     }
 
     private fun createNotificationChannel() {
