@@ -337,7 +337,6 @@ private fun providerToDnsIp(provider: String): String = when (provider) {
     else -> "1.1.1.1"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SegmentedChips(options: List<String>, selected: String, onSelected: (String) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
