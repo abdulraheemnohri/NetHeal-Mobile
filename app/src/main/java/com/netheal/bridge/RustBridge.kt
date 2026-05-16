@@ -25,6 +25,7 @@ object RustBridge {
     external fun setBoosterActive(active: Boolean)
     external fun setMultipath(active: Boolean)
     external fun setMultipathActive(active: Boolean)
+    external fun setObfuscation(active: Boolean)
     external fun setShapingMode(mode: Int)
     external fun setPerformanceMode(active: Boolean) // Changed back to Boolean for compatibility
     external fun setBufferSize(size: Int)

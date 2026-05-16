@@ -16,11 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -54,8 +52,9 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
-        // Quantum Stealth Layer
+    Box(modifier = Modifier.fillMaxSize()) {
+        CyberBackground()
+
         if (isShieldActive && isStealthActive && isBoosterActive) {
             QuantumOverlay()
         }
@@ -69,12 +68,12 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
             Header()
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Advanced Master Shield
+            // 3D Global Threat Core
             Box(
                 modifier = Modifier.fillMaxWidth().height(240.dp),
                 contentAlignment = Alignment.Center
             ) {
-                ShieldPulseEffect(isShieldActive)
+                GlobalThreatCore(isShieldActive)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = {
@@ -92,15 +91,12 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
                         )
                     }
                     Text(
-                        if (isShieldActive) "SYSTEM STATUS: SECURE" else "SYSTEM STATUS: VULNERABLE",
+                        if (isShieldActive) "CORE PROTECTION: ACTIVE" else "CORE PROTECTION: OFFLINE",
                         color = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.sp
                     )
-                    if (isStealthActive && isShieldActive) {
-                        Text("QUANTUM-SAFE STEALTH ENABLED", color = CyberTheme.Secondary, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                    }
                 }
             }
 
@@ -114,17 +110,84 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Neural Terminal
-            NeuralTerminal()
-
+            NeuroLinkInterface()
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Advisory
+            NeuralTerminal()
+            Spacer(modifier = Modifier.height(24.dp))
             AdvisorySection()
-
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+}
+
+@Composable
+fun NeuroLinkInterface() {
+    var isListening by remember { mutableStateOf(false) }
+    val infiniteTransition = rememberInfiniteTransition(label = "neurolink")
+    val waveScale by infiniteTransition.animateFloat(
+        initialValue = 0.5f, targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(animation = tween(1000), repeatMode = RepeatMode.Reverse),
+        label = "wave"
+    )
+
+    GlassCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(50.dp), contentAlignment = Alignment.Center) {
+                if (isListening) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(CyberTheme.Secondary.copy(alpha = 0.2f), radius = size.minDimension / 2 * waveScale)
+                    }
+                }
+                IconButton(onClick = { isListening = !isListening }) {
+                    Icon(if (isListening) Icons.Default.Mic else Icons.Default.MicNone, null, tint = if (isListening) CyberTheme.Secondary else Color.Gray)
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text("NEURO-LINK TACTICAL", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                Text(if (isListening) "Listening for voice commands..." else "Tap to engage voice-link simulation", color = Color.Gray, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun GlobalThreatCore(active: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "core")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(15000, easing = LinearEasing)),
+        label = "core_rotate"
+    )
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.9f, targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(animation = tween(3000), repeatMode = RepeatMode.Reverse),
+        label = "core_scale"
+    )
+
+    Canvas(modifier = Modifier.size(240.dp).rotate(rotation)) {
+        val color = if (active) CyberTheme.Primary else CyberTheme.Danger
+        drawCircle(
+            color = color.copy(alpha = 0.05f),
+            radius = (size.minDimension / 2) * scale
+        )
+        drawCircle(
+            color = color,
+            radius = (size.minDimension / 2) * scale,
+            style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 15f), 0f))
+        )
+        drawOval(
+            color = color.copy(alpha = 0.3f),
+            topLeft = center.copy(x = center.x - 100f * scale, y = center.y - 40f * scale),
+            size = androidx.compose.ui.geometry.Size(200f * scale, 80f * scale),
+            style = Stroke(width = 2f)
+        )
+        drawOval(
+            color = CyberTheme.Secondary.copy(alpha = 0.2f),
+            topLeft = center.copy(x = center.x - 40f * scale, y = center.y - 100f * scale),
+            size = androidx.compose.ui.geometry.Size(80f * scale, 200f * scale),
+            style = Stroke(width = 2f)
+        )
     }
 }
 
@@ -143,45 +206,6 @@ fun QuantumOverlay() {
                 center = center,
                 radius = size.maxDimension / 1.5f
             )
-        )
-    }
-}
-
-@Composable
-fun ShieldPulseEffect(active: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "shield_pulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.8f, targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(animation = tween(2000), repeatMode = RepeatMode.Reverse),
-        label = "pulse_scale"
-    )
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(10000, easing = LinearEasing)),
-        label = "pulse_rotate"
-    )
-
-    Canvas(modifier = Modifier.size(220.dp).rotate(rotation)) {
-        val path = Path().apply {
-            val radius = (size.minDimension / 2) * scale
-            val centerX = size.width / 2
-            val centerY = size.height / 2
-            for (i in 0..5) {
-                val angle = Math.toRadians(60.0 * i - 30.0)
-                val x = centerX + radius * Math.cos(angle).toFloat()
-                val y = centerY + radius * Math.sin(angle).toFloat()
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-            }
-            close()
-        }
-        drawPath(
-            path = path,
-            color = if (active) CyberTheme.Primary.copy(alpha = 0.05f) else CyberTheme.Danger.copy(alpha = 0.05f)
-        )
-        drawPath(
-            path = path,
-            color = if (active) CyberTheme.Primary else CyberTheme.Danger,
-            style = Stroke(width = 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f))
         )
     }
 }
