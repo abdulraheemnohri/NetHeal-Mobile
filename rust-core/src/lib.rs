@@ -399,3 +399,13 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAppRule(
     let engine = ENGINE.lock().unwrap();
     engine.get_app_rule(&app_id_str) as jint
 }
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setObfuscation(
+    _env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    active: jni::sys::jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_obfuscation_active(active != 0);
+}
