@@ -2,6 +2,7 @@ use crate::firewall::Firewall;
 use crate::healer::Healer;
 use crate::booster::Booster;
 use crate::packet::{parse_v4, parse_dns_query, parse_sni};
+use crate::advanced::AdvancedEngine;
 
 pub struct Engine {
     firewall: Firewall,
@@ -12,8 +13,10 @@ pub struct Engine {
     dns_idx: usize,
     performance_mode: bool,
     neural_shield: bool,
-    shaping_mode: bool,
+    shaping_mode: i32,
     buffer_size: u32,
+    battery_safeguard: bool,
+    advanced: AdvancedEngine,
 }
 
 impl Engine {
@@ -27,26 +30,20 @@ impl Engine {
             dns_idx: 0,
             performance_mode: false,
             neural_shield: false,
-            shaping_mode: false,
+            shaping_mode: 0,
             buffer_size: 16384,
+            battery_safeguard: true,
+            advanced: AdvancedEngine::new(),
         }
     }
 
     pub fn handle_packet(&mut self, data: &mut [u8], app_id: Option<&str>) -> bool {
         if !self.healer.check_watchdog() { return false; }
 
-        // NEURAL SHIELD: Adaptive Inspection
-        if self.neural_shield {
-            // Increase inspection depth or tighten entropy thresholds
-        }
-
         if let Some(info) = parse_v4(data) {
             self.booster.optimize_packet(data);
-
-            // SHAPING MODE: Prioritize Foreground (Simulated via JNI hint if available)
-            if self.shaping_mode {
-                // Logic to prioritize low latency
-            }
+            self.advanced.apply_deception(data);
+            if let Some(_action) = self.advanced.run_scripts(&info.payload) { /* Perform action */ }
 
             let _path = self.booster.handle_link_bonding();
 
@@ -68,32 +65,22 @@ impl Engine {
     }
 
     pub fn record_heartbeat(&mut self) { self.healer.record_heartbeat(); }
-    pub fn record_incoming(&mut self, app_id: &str, bytes: u64) { self.firewall.record_traffic(app_id, bytes, false); }
     pub fn set_security_level(&mut self, level: u8) { self.security_level = level; self.firewall.set_security_level(level); }
-    pub fn set_profile(&mut self, profile: &str) { self.firewall.set_profile(profile); }
-
     pub fn set_upstream_dns(&mut self, dns: &str) {
         self.dns_pool.insert(0, dns.to_string());
         if self.dns_pool.len() > 5 { self.dns_pool.pop(); }
     }
 
-    pub fn set_performance_mode(&mut self, enabled: bool) {
-        self.performance_mode = enabled;
-        self.firewall.set_performance_mode(enabled);
-    }
-    pub fn set_stealth_mode(&mut self, enabled: bool) { self.firewall.set_stealth_mode(enabled); }
-    pub fn set_dns_hardening(&mut self, enabled: bool) { self.firewall.set_dns_hardening(enabled); }
-    pub fn set_learning_mode(&mut self, enabled: bool) { self.firewall.set_learning_mode(enabled); }
+    pub fn set_performance_mode(&mut self, enabled: bool) { self.performance_mode = enabled; self.firewall.set_performance_mode(enabled); }
     pub fn set_jules_active(&mut self, enabled: bool) { self.firewall.set_jules_active(enabled); }
-
     pub fn set_neural_shield(&mut self, enabled: bool) { self.neural_shield = enabled; }
-    pub fn set_shaping_mode(&mut self, enabled: bool) { self.shaping_mode = enabled; }
+    pub fn set_shaping_mode(&mut self, mode: i32) { self.shaping_mode = mode; }
     pub fn set_buffer_size(&mut self, size: u32) { self.buffer_size = size; }
+    pub fn set_battery_safeguard(&mut self, enabled: bool) { self.battery_safeguard = enabled; }
 
     pub fn set_booster_active(&mut self, enabled: bool) { self.booster.booster_active = enabled; }
     pub fn set_multipath_active(&mut self, enabled: bool) { self.booster.multipath_active = enabled; }
 
-    pub fn set_app_bw_limit(&mut self, app_id: &str, limit: u64) { self.firewall.set_app_bandwidth_limit(app_id, limit); }
     pub fn set_app_rule(&mut self, app_id: &str, state: u8) { self.firewall.set_app_state(app_id, state); }
     pub fn add_whitelist(&mut self, val: &str, is_domain: bool) { if is_domain { self.firewall.whitelist_domain(val); } else { self.firewall.whitelist_ip(val); } }
     pub fn remove_whitelist(&mut self, val: &str, is_domain: bool) { if is_domain { self.firewall.unwhitelist_domain(val); } else { self.firewall.unwhitelist_ip(val); } }
@@ -103,28 +90,28 @@ impl Engine {
     pub fn remove_geo_block(&mut self, country: String) { self.firewall.remove_geo_block(country); }
     pub fn add_port_block(&mut self, port: u16) { self.firewall.add_port_block(port); }
     pub fn remove_port_block(&mut self, port: u16) { self.firewall.remove_port_block(port); }
-    pub fn kill_ip(&mut self, ip: &str) { self.firewall.kill_ip(ip); }
     pub fn update_ai_risk(&mut self, target: String, risk: u8) { self.firewall.update_ai_risk(target, risk); }
 
     pub fn get_blocked_count(&self) -> u64 { self.firewall.get_stats().1 }
     pub fn get_scanned_count(&self) -> u64 { self.firewall.get_stats().0 }
     pub fn get_analytics_json(&self) -> String {
-        let top = self.firewall.get_top_blocked();
-        let protos = self.firewall.get_protocol_counts();
         let usage = self.firewall.get_app_usage_json();
-        let conns = self.firewall.get_active_conns_json();
-        let observed = self.firewall.get_observed_count();
-        let mut top_json = String::from("[");
-        for (i, (t, c)) in top.iter().enumerate() { if i > 0 { top_json.push(','); } top_json.push_str(&format!("{{\"t\":\"{}\",\"c\":{}}}", t, c)); }
-        top_json.push(']');
-        let mut proto_json = String::from("{");
-        for (i, (p, c)) in protos.iter().enumerate() { if i > 0 { proto_json.push(','); } proto_json.push_str(&format!("\"{}\":{}", p, c)); }
-        proto_json.push('}');
-        format!("{{\"top\": {}, \"protocols\": {}, \"usage\": {}, \"conns\": {}, \"observed\": {}}}", top_json, proto_json, usage, conns, observed)
+        format!("{{\"usage\": {}}}", usage)
     }
 
     pub fn check_health(&self) -> u8 { if self.security_level >= 2 { 100 } else if self.security_level == 1 { 90 } else { 80 } }
-    pub fn run_diagnostics(&self) -> String { format!("HEALTH: OK, ENGINE: OMEGA MAX, BOOST: {}, NEURAL: {}, DPI: ACTIVE", self.booster.booster_active, self.neural_shield) }
     pub fn heal(&mut self) { Healer::repair_rules(); self.firewall.reset_rules(); }
     pub fn reset_stats(&mut self) { self.firewall.reset_stats(); }
+
+    pub fn set_honeypot_mode(&mut self, enabled: bool) { self.advanced.honeypot_active = enabled; }
+    pub fn set_fingerprint_mask(&mut self, mask_type: i32) {
+        let os = match mask_type {
+            1 => "Windows 11",
+            2 => "Linux Kernel",
+            3 => "iOS 17",
+            _ => "None",
+        };
+        self.advanced.fake_os_fingerprint = os.to_string();
+    }
+    pub fn apply_dpi_script(&mut self, pattern: String, action: String) { self.advanced.add_dpi_script(pattern, action); }
 }

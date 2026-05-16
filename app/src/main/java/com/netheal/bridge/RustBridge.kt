@@ -5,40 +5,48 @@ object RustBridge {
         System.loadLibrary("netheal")
     }
 
-    external fun handlePacket(packet: ByteArray): Boolean
-    external fun handlePacketWithApp(packet: ByteArray, appId: String): Boolean
-    external fun recordIncoming(appId: String, bytes: Long)
-    external fun recordHeartbeat()
+    external fun startEngine(): Boolean
+    external fun stopEngine()
+    external fun getStats(): String
     external fun setSecurityLevel(level: Int)
-    external fun setProfile(profile: String)
-    external fun setUpstreamDns(dns: String)
-    external fun setPerformanceMode(enabled: Boolean)
-    external fun setStealthMode(enabled: Boolean)
-    external fun setDnsHardening(enabled: Boolean)
-    external fun setLearningMode(enabled: Boolean)
-    external fun setJulesActive(enabled: Boolean)
-    external fun setBoosterActive(enabled: Boolean)
-    external fun setMultipathActive(enabled: Boolean)
-    external fun setNeuralShield(enabled: Boolean)
-    external fun setBufferSize(size: Int)
-    external fun setShapingMode(enabled: Boolean)
-    external fun updateAiRisk(target: String, risk: Int)
-    external fun setAppRule(appId: String, state: Int)
-    external fun setAppBwLimit(appId: String, limit: Long)
-    external fun getBlockedCount(): Long
-    external fun getScannedCount(): Long
-    external fun getSecurityScore(): Int
-    external fun addWhitelist(valStr: String, isDomain: Boolean)
-    external fun removeWhitelist(valStr: String, isDomain: Boolean)
-    external fun addBlacklist(valStr: String, isDomain: Boolean)
-    external fun removeBlacklist(valStr: String, isDomain: Boolean)
-    external fun addGeoBlock(country: String)
-    external fun removeGeoBlock(country: String)
+    external fun setAppRule(packageName: String, rule: Int)
+    external fun addWhitelist(target: String, isDomain: Boolean)
+    external fun removeWhitelist(target: String, isDomain: Boolean)
+    external fun addBlacklist(target: String, isDomain: Boolean)
+    external fun removeBlacklist(target: String, isDomain: Boolean)
     external fun addPortBlock(port: Int)
     external fun removePortBlock(port: Int)
-    external fun killIp(ip: String)
-    external fun heal()
-    external fun resetStats()
-    external fun getAnalytics(): ByteArray
-    external fun runDiagnostics(): ByteArray
+    external fun addGeoBlock(countryIso: String)
+    external fun removeGeoBlock(countryIso: String)
+
+    // Core Control
+    external fun setBooster(active: Boolean)
+    external fun setBoosterActive(active: Boolean)
+    external fun setMultipath(active: Boolean)
+    external fun setMultipathActive(active: Boolean)
+    external fun setShapingMode(mode: Int)
+    external fun setPerformanceMode(active: Boolean) // Changed back to Boolean for compatibility
+    external fun setBufferSize(size: Int)
+    external fun setBatterySafeguard(active: Boolean)
+
+    // AI & Advanced
+    external fun setJulesActive(active: Boolean)
+    external fun setNeuralShield(active: Boolean)
+    external fun updateAiRisk(packageName: String, score: Int)
+    external fun applyDpiScript(pattern: String, action: String)
+    external fun setHoneypotMode(active: Boolean)
+    external fun setFingerprintMask(maskType: Int)
+
+    // Telemetry & Stats
+    external fun getScannedCount(): Long
+    external fun getBlockedCount(): Long
+    external fun getSecurityScore(): Int
+    external fun getAnalytics(): ByteArray // Returns ByteArray as expected by NetHealApp
+    external fun recordHeartbeat()
+    external fun clearLogs()
+
+    // VPN Engine
+    external fun setUpstreamDns(dns: String)
+    external fun handlePacket(packet: ByteArray): Boolean
+    external fun heal(packet: ByteArray? = null): ByteArray? // Default null for empty heal() call
 }

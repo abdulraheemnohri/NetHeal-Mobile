@@ -38,7 +38,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun FirewallScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("ISOLATION", "POLICIES", "LISTS", "WIFI", "INTEL", "LOGS")
+    val tabs = listOf("ISOLATION", "POLICIES", "LISTS", "WIFI", "INTEL", "DPI", "LOGS")
     val scope = rememberCoroutineScope()
     var whitelist by remember { mutableStateOf(listOf<WhitelistEntry>()) }
     var blacklist by remember { mutableStateOf(listOf<BlacklistEntry>()) }
@@ -85,7 +85,7 @@ fun FirewallScreen() {
             }
         ) {
             tabs.forEachIndexed { index, title ->
-                Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold) })
+                Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold) })
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -96,8 +96,59 @@ fun FirewallScreen() {
                 2 -> GlobalListsSection(whitelist, blacklist, ::updateData)
                 3 -> WifiSecuritySection(schedules, ssidRules, ::updateData)
                 4 -> IntelligenceSection()
-                5 -> LogsSection()
+                5 -> DpiScriptingSection()
+                6 -> LogsSection()
             }
+        }
+    }
+}
+
+@Composable
+fun DpiScriptingSection() {
+    var scriptInput by remember { mutableStateOf("") }
+    var actionInput by remember { mutableStateOf("BLOCK") }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Text("DPI SCRIPTING ENGINE", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Match Pattern (Hex or UTF-8)", color = Color.Gray, fontSize = 9.sp)
+                OutlinedTextField(
+                    value = scriptInput, onValueChange = { scriptInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Action on Match", color = Color.Gray, fontSize = 9.sp)
+                OutlinedTextField(
+                    value = actionInput, onValueChange = { actionInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        RustBridge.applyDpiScript(scriptInput, actionInput)
+                        Toast.makeText(context, "Script Deployed to Kernel", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))
+                ) {
+                    Icon(Icons.Default.Code, null, tint = Color(0xFF00FFA3))
+                    Spacer(modifier = Modifier.width(8.dp)); Text("DEPLOY SCRIPT", color = Color.White)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("ACTIVE SCRIPT LOGS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(modifier = Modifier.fillMaxWidth().height(100.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF010409)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+            Text("Waiting for DPI hits...", color = Color.DarkGray, fontSize = 10.sp, modifier = Modifier.padding(12.dp))
         }
     }
 }
@@ -128,7 +179,6 @@ fun IntelligenceSection() {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text("JULES AI INTEL FEED", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
-
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -147,19 +197,16 @@ fun IntelligenceSection() {
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(24.dp))
         Text("THREAT VECTOR ANALYTICS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         ThreatAnalyticsChart()
-
         Spacer(modifier = Modifier.height(24.dp))
         Text("DYNAMIC AI FINDINGS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         IntelItem("MALWARE SIGNATURES", "Generated 3 new C2 block rules", "CRITICAL") { showDetailDialog = "Malware Signatures" to "Jules AI detected patterns matching known C2 botnets." }
         IntelItem("ANOMALY DETECTION", "Heuristic engine improved via Jules API", "OPTIMIZED") { showDetailDialog = "Heuristic Engine" to "The Jules AI engine analyzed packets and updated heuristics." }
         IntelItem("TRAFFIC ANALYSIS", "Identified high-risk exfiltration pattern", "WARNING") { showDetailDialog = "Data Exfiltration" to "An app was detected attempting to send packets to a suspicious IP range." }
-
         Spacer(modifier = Modifier.height(24.dp))
         Text("REAL-TIME AI LOG", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
@@ -184,26 +231,7 @@ fun IntelligenceSection() {
     }
 }
 
-@Composable
-fun ThreatAnalyticsChart() {
-    Card(modifier = Modifier.fillMaxWidth().height(100.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Canvas(modifier = Modifier.size(60.dp)) {
-                drawArc(Color.Red, -90f, 120f, true)
-                drawArc(Color.Yellow, 30f, 80f, true)
-                drawArc(Color.Cyan, 110f, 100f, true)
-                drawArc(Color.Gray, 210f, 60f, true)
-            }
-            Spacer(modifier = Modifier.width(24.dp))
-            Column {
-                ChartLabel("Spyware", Color.Red)
-                ChartLabel("Botnets", Color.Yellow)
-                ChartLabel("Adware", Color.Cyan)
-            }
-        }
-    }
-}
-
+@Composable fun ThreatAnalyticsChart() { Card(modifier = Modifier.fillMaxWidth().height(100.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) { Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Canvas(modifier = Modifier.size(60.dp)) { drawArc(Color.Red, -90f, 120f, true); drawArc(Color.Yellow, 30f, 80f, true); drawArc(Color.Cyan, 110f, 100f, true); drawArc(Color.Gray, 210f, 60f, true) }; Spacer(modifier = Modifier.width(24.dp)); Column { ChartLabel("Spyware", Color.Red); ChartLabel("Botnets", Color.Yellow); ChartLabel("Adware", Color.Cyan) } } } }
 @Composable fun ChartLabel(label: String, color: Color) { Row(verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(6.dp).background(color, CircleShape)); Spacer(modifier = Modifier.width(8.dp)); Text(label, color = Color.Gray, fontSize = 9.sp) } }
 @Composable fun IntelMetric(label: String, value: String) { Column { Text(label, color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold); Text(value, color = Color(0xFF00FFA3), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold) } }
 @Composable fun IntelItem(title: String, desc: String, level: String, onClick: () -> Unit) { Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) { Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(8.dp).background(if (level == "CRITICAL") Color.Red else if (level == "WARNING") Color.Yellow else Color(0xFF00FFA3), CircleShape)); Spacer(modifier = Modifier.width(16.dp)); Column(modifier = Modifier.weight(1f)) { Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp); Text(desc, color = Color.Gray, fontSize = 10.sp) }; Text(level, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold) } } }
@@ -352,4 +380,9 @@ fun LogsSection() {
             1 -> LogsScreen()
         }
     }
+}
+
+@Composable
+fun LogsSectionWithTelemetry() {
+    // Shared container for logs
 }
