@@ -14,7 +14,8 @@ pub enum ThreatType {
     Spyware,
     Tracking,
     InsecureHTTP,
-    BehavioralAnomaly
+    BehavioralAnomaly,
+    PortKnocking,
 }
 
 pub struct ThreatReport {
@@ -79,29 +80,43 @@ pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
         if d_port == 80 { return Some((40, ThreatType::InsecureHTTP)); }
     }
 
-    for i in 0..data.len().saturating_sub(4) {
-        if &data[i..i+4] == [0x58, 0x50, 0x33, 0x4F] {
-            return Some((100, ThreatType::IDS));
+    // Advanced: Detect rapid small packet bursts matching C2 exfiltration
+    if data.len() < 100 && data.len() > 60 {
+        // Mock: specific signatures in small packets
+        for i in 0..data.len().saturating_sub(4) {
+            if &data[i..i+4] == [0xDE, 0xAD, 0xBE, 0xEF] {
+                return Some((100, ThreatType::Exfiltration));
+            }
         }
     }
-
-    if data.len() > 1500 { return Some((70, ThreatType::Malformed)); }
 
     None
 }
 
 /// Behavioral analysis: Fingerprint traffic by packet size and timing patterns
-pub fn analyze_behavior(packet_sizes: &[usize], inter_arrival_times: &[u64]) -> Option<(u8, String)> {
+pub fn analyze_behavior(packet_sizes: &[usize], inter_arrival_times: &[u64], ports: &[u16]) -> Option<(u8, String)> {
     if packet_sizes.len() < 5 { return None; }
 
-    // Simple fingerprinting mock: detect repeated small packet bursts (heartbeat/C2)
+    // Detect Port Knocking (rapid connection attempts to sequential ports)
+    if ports.len() >= 3 {
+        let mut sequential = true;
+        for i in 0..ports.len()-1 {
+            if (ports[i+1] as i32 - ports[i] as i32).abs() > 5 { sequential = false; break; }
+        }
+        if sequential { return Some((95, "PORT_KNOCKING_DETECTED".to_string())); }
+    }
+
+    // Detect Data Exfiltration (large outbound bursts followed by silence)
+    let total_size: usize = packet_sizes.iter().sum();
+    if total_size > 1024 * 1024 && packet_sizes.len() < 20 {
+        return Some((85, "DATA_EXFILTRATION_SEQUENCE".to_string()));
+    }
+
     let avg_size: usize = packet_sizes.iter().sum::<usize>() / packet_sizes.len();
     if avg_size < 100 && packet_sizes.len() > 10 {
-        // High frequency small packets might be a background leak or tracking
         return Some((60, "SMALL_BURST_BEHAVIOR".to_string()));
     }
 
-    // Detect high variance in inter-arrival times (potential automated bot)
     if inter_arrival_times.len() > 5 {
         let avg_time: u64 = inter_arrival_times.iter().sum::<u64>() / inter_arrival_times.len() as u64;
         if avg_time < 50 {

@@ -10,6 +10,7 @@ object RustBridge {
     external fun getStats(): String
     external fun setSecurityLevel(level: Int)
     external fun setAppRule(packageName: String, rule: Int)
+    external fun getAppRule(packageName: String): Int
     external fun addWhitelist(target: String, isDomain: Boolean)
     external fun removeWhitelist(target: String, isDomain: Boolean)
     external fun addBlacklist(target: String, isDomain: Boolean)

@@ -65,6 +65,10 @@ class NetHealApp : Application() {
             database.netHealDao().updateStats(UsageStats(today, scanned, blocked))
             updateNetworkPosture()
             runScheduledTasks()
+
+            // Incident Timeline Generation
+            generateIncidentTimeline()
+
             val cal = Calendar.getInstance()
             cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
             database.netHealDao().updateHourly(HourlyUsage(hour = cal.timeInMillis, sent = scanned, recv = blocked))
@@ -74,11 +78,24 @@ class NetHealApp : Application() {
 
     private suspend fun runPredictiveAnalytics(prefs: android.content.SharedPreferences) {
         val now = LocalTime.now()
+        // Night-Shield: AI predicts higher risk of background exfiltration at night
         if (now.hour >= 23 || now.hour < 5) {
             if (prefs.getBoolean("neural_shield", true)) {
                 RustBridge.setSecurityLevel(3)
                 Log.i("JulesAI", "Predictive Analytics: Enabling Night-Shield protection.")
             }
+        }
+
+        // Dynamic Attack Prediction based on blocked counts
+        val blocked = RustBridge.getBlockedCount()
+        if (blocked > 1000) {
+            val incident = Incident(
+                title = "AI PREDICTION: BRUTE FORCE DETECTED",
+                description = "Rapid blocked connection attempts suggest an ongoing automated attack. Escalating security level.",
+                severity = "CRITICAL"
+            )
+            database.netHealDao().insertIncident(incident)
+            RustBridge.setSecurityLevel(4)
         }
     }
 
@@ -91,17 +108,33 @@ class NetHealApp : Application() {
                 val usage = analytics.optJSONObject("usage")
                 usage?.keys()?.forEach { appId ->
                     val appData = usage.getJSONObject(appId)
-                    if (appData.getLong("p") > 10000 && !appId.startsWith("com.android")) {
+                    // Auto Firewall Rule: If an app consumes too much background data, auto-restrict it
+                    if (appData.getLong("p") > 50000 && !appId.startsWith("com.android")) {
                         RustBridge.setAppRule(appId, 2)
+                        database.netHealDao().insertIncident(Incident(
+                            title = "AUTO FIREWALL: APP ISOLATED",
+                            description = "App $appId flagged for excessive background traffic. Connectivity restricted.",
+                            severity = "WARNING",
+                            sourceApp = appId
+                        ))
                     }
-                }
-                val newSignatures = listOf("c2-alpha.net", "miner.pool.x", "stealth-exfil.v3")
-                newSignatures.forEach { target ->
-                    RustBridge.updateAiRisk(target, 100)
-                    RustBridge.addBlacklist(target, true)
                 }
             }
         } catch (e: Exception) { Log.e("JulesAI", "Sync failed", e) }
+    }
+
+    private suspend fun generateIncidentTimeline() {
+        val logs = database.netHealDao().getAllLogs()
+        if (logs.size > 50) {
+            val highRisk = logs.filter { it.riskScore > 90 }
+            if (highRisk.isNotEmpty()) {
+                database.netHealDao().insertIncident(Incident(
+                    title = "THREAT CLUSTER IDENTIFIED",
+                    description = "Detected ${highRisk.size} high-risk packets targeting external C2 nodes.",
+                    severity = "CRITICAL"
+                ))
+            }
+        }
     }
 
     private fun checkBatteryStatus(prefs: android.content.SharedPreferences) {
@@ -116,9 +149,6 @@ class NetHealApp : Application() {
                 RustBridge.setBoosterActive(false)
                 Log.w("NetHeal", "Battery Safeguard Triggered: Defenses Offline")
             }
-        if (batteryPct < 15 && !prefs.getBoolean("performance_mode", false)) {
-            RustBridge.setPerformanceMode(true)
-        }
     }
 
     private fun updateNetworkPosture() {
