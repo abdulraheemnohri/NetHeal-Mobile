@@ -186,7 +186,7 @@ interface NetHealDao {
     suspend fun getBypassApps(): List<BypassApp>
 }
 
-@Database(entities = [ThreatLog::class, Incident::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, HourlyUsage::class, UsageStats::class, SsidRule::class, PortRule::class, GeoRule::class], version = 14)
+@Database(entities = [ThreatLog::class, Incident::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, HourlyUsage::class, UsageStats::class, SsidRule::class, PortRule::class, GeoRule::class], version = 14, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }

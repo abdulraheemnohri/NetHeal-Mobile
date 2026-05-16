@@ -338,6 +338,7 @@ private fun providerToDnsIp(provider: String): String = when (provider) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun SegmentedChips(options: List<String>, selected: String, onSelected: (String) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { option ->
