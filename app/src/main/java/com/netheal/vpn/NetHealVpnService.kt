@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import com.netheal.MainActivity
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
+import com.netheal.data.Incident
 import com.netheal.data.ThreatLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,7 @@ class NetHealVpnService : VpnService() {
     private var thread: Thread? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO)
     private var wakeLock: PowerManager.WakeLock? = null
+    private var powerManager: PowerManager? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -34,6 +36,7 @@ class NetHealVpnService : VpnService() {
             stopVpn()
             return START_NOT_STICKY
         }
+        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         acquireWakeLock()
 
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
@@ -53,8 +56,6 @@ class NetHealVpnService : VpnService() {
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1400)
             builder.addDnsServer("10.0.0.2")
-
-            val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
 
             serviceScope.launch {
                 val bypass = NetHealApp.database.netHealDao().getBypassApps()
@@ -76,6 +77,7 @@ class NetHealVpnService : VpnService() {
         val inputStream = FileInputStream(descriptor.fileDescriptor)
         val outputStream = FileOutputStream(descriptor.fileDescriptor)
         val packet = ByteBuffer.allocate(32768)
+        var lastSleepLogTime = 0L
 
         try {
             while (!Thread.interrupted()) {
@@ -84,9 +86,23 @@ class NetHealVpnService : VpnService() {
                     val data = ByteArray(length)
                     System.arraycopy(packet.array(), 0, data, 0, length)
 
-                    // Allow Rust to mutate packet for Stealth features (e.g. TTL randomization)
-                    val allowed = RustBridge.handlePacket(data)
+                    // Deep-Sleep Guard: Detect background leaks while screen is off
+                    val isScreenOn = powerManager?.isInteractive ?: true
+                    if (!isScreenOn && length > 1000) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastSleepLogTime > 60000) {
+                            lastSleepLogTime = now
+                            serviceScope.launch {
+                                NetHealApp.database.netHealDao().insertIncident(Incident(
+                                    title = "DEEP-SLEEP LEAK DETECTED",
+                                    description = "Identified 1KB+ traffic burst while device was stationary and screen-off. Potential vampire data leak.",
+                                    severity = "WARNING"
+                                ))
+                            }
+                        }
+                    }
 
+                    val allowed = RustBridge.handlePacket(data)
                     if (allowed) {
                         outputStream.write(data, 0, length)
                     } else {
@@ -97,18 +113,13 @@ class NetHealVpnService : VpnService() {
             }
         } catch (e: Exception) {
             Log.e("NetHealVpn", "VPN Loop error", e)
-            val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-            if (prefs.getBoolean("kill_switch", true)) {
-                RustBridge.setSecurityLevel(4)
-            }
             RustBridge.heal()
         }
         finally { cleanup() }
     }
 
     private fun acquireWakeLock() {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NetHeal::VpnWakeLock")
+        wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NetHeal::VpnWakeLock")
         wakeLock?.acquire()
     }
 

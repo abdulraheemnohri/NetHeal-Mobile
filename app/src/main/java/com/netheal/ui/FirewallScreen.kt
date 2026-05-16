@@ -38,7 +38,7 @@ import java.util.*
 @Composable
 fun FirewallScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("ISOLATION", "POLICIES", "INCIDENTS", "AI INTEL", "DPI")
+    val tabs = listOf("ISOLATION", "POLICIES", "INCIDENTS", "AI INTEL", "SIMULATION", "DPI")
     val scope = rememberCoroutineScope()
     var customRules by remember { mutableStateOf(listOf<CustomRule>()) }
     var portRules by remember { mutableStateOf(listOf<PortRule>()) }
@@ -57,7 +57,7 @@ fun FirewallScreen() {
 
     LaunchedEffect(Unit) { updateData() }
 
-    Column(modifier = Modifier.fillMaxSize().background(CyberTheme.Background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Transparent).padding(16.dp)) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -91,7 +91,80 @@ fun FirewallScreen() {
                 1 -> CustomRulesSection(customRules, portRules, geoRules, ::updateData)
                 2 -> IncidentsSection()
                 3 -> IntelligenceSection()
-                4 -> DpiScriptingSection()
+                4 -> SimulationSandboxSection()
+                5 -> DpiScriptingSection()
+            }
+        }
+    }
+}
+
+@Composable
+fun SimulationSandboxSection() {
+    val context = LocalContext.current
+    var isSimulating by remember { mutableStateOf(false) }
+    var lastSimResult by remember { mutableStateOf("Ready for payload execution.") }
+    val scope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Text("THREAT SIMULATION SANDBOX", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        GlassCard {
+            Text("ENGINE RESPONSE FEED", color = Color.Gray, fontSize = 9.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(modifier = Modifier.fillMaxWidth().height(80.dp), colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.3f))) {
+                Text(lastSimResult, color = CyberTheme.Primary, fontSize = 11.sp, modifier = Modifier.padding(12.dp), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            }
+            if (isSimulating) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(2.dp), color = CyberTheme.Secondary)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("AVAILABLE ATTACK VECTORS", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        SimTrigger("C2 CALLBACK BEACON", "Simulate outbound encrypted heartbeat to known C2 node.") {
+            scope.launch {
+                isSimulating = true; lastSimResult = "Executing: encrypted_beacon_v4.payload..."
+                delay(1500); lastSimResult = "ALERT: C2 pattern detected by JULES AI. Action: REJECTED."
+                isSimulating = false
+                NetHealApp.database.netHealDao().insertIncident(Incident(title = "SIMULATION: C2 BLOCKED", description = "AI neutralized simulated outbound beacon.", severity = "INFO"))
+            }
+        }
+
+        SimTrigger("SYN FLOOD BURST", "Initiate high-frequency TCP handshake requests.") {
+            scope.launch {
+                isSimulating = true; lastSimResult = "Executing: syn_flood_burst.sh..."
+                delay(2000); lastSimResult = "SHIELD: Threshold reached. Auto-scaling security level to 4."
+                isSimulating = false
+                RustBridge.setSecurityLevel(4)
+            }
+        }
+
+        SimTrigger("DATA EXFILTRATION", "Simulate large unencrypted payload transfer sequence.") {
+             scope.launch {
+                isSimulating = true; lastSimResult = "Executing: data_dump_0x42.bin..."
+                delay(1800); lastSimResult = "KERNEL: Sequence anomaly detected. Flow terminated."
+                isSimulating = false
+            }
+        }
+    }
+}
+
+@Composable
+fun SimTrigger(name: String, desc: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface),
+        border = BorderStroke(1.dp, CyberTheme.Border)
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.BugReport, null, tint = CyberTheme.Secondary, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(desc, color = Color.Gray, fontSize = 10.sp)
             }
         }
     }

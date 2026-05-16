@@ -1,5 +1,6 @@
 package com.netheal.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -32,9 +34,37 @@ object CyberTheme {
     val CardGradient = Brush.verticalGradient(listOf(Color(0xFF161B22), Color(0xFF0D1117)))
 }
 
+@Composable
+fun CyberBackground() {
+    val infiniteTransition = rememberInfiniteTransition(label = "bg")
+    val offset by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 100f,
+        animationSpec = infiniteRepeatable(animation = tween(4000, easing = LinearEasing)),
+        label = "offset"
+    )
+    Canvas(modifier = Modifier.fillMaxSize().background(CyberTheme.Background)) {
+        val gridStep = 50f
+        for (x in 0..(size.width / gridStep).toInt()) {
+            val posX = x * gridStep + (offset % gridStep)
+            drawLine(CyberTheme.Border.copy(alpha = 0.1f), Offset(posX, 0f), Offset(posX, size.height))
+        }
+        for (y in 0..(size.height / gridStep).toInt()) {
+            val posY = y * gridStep + (offset % gridStep)
+            drawLine(CyberTheme.Border.copy(alpha = 0.1f), Offset(0f, posY), Offset(size.width, posY))
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Header() {
+    val infiniteTransition = rememberInfiniteTransition(label = "sync")
+    val syncAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(animation = tween(1000), repeatMode = RepeatMode.Reverse),
+        label = "sync_alpha"
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -50,11 +80,11 @@ fun Header() {
                 modifier = Modifier.shadow(8.dp, CircleShape, spotColor = CyberTheme.Primary)
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).background(CyberTheme.Primary, CircleShape))
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(CyberTheme.Primary.copy(alpha = syncAlpha)))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    "ABSOLUTE CORE ACTIVE",
-                    color = CyberTheme.Primary,
+                    "GLOBAL CORE SYNC ACTIVE",
+                    color = CyberTheme.Primary.copy(alpha = syncAlpha),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -147,12 +177,8 @@ fun HistoricalTrafficChart(history: List<HourlyUsage>) {
     GlassCard {
         Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                // Simplified graph placeholder
                 val points = history.takeLast(10)
-                if (points.isNotEmpty()) {
-                    // Draw grid lines
-                    // Draw path
-                }
+                if (points.isNotEmpty()) {}
             }
             Text("Network Pulse Visualizer", color = Color.Gray.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }

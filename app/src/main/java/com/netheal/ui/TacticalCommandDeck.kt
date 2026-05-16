@@ -1,5 +1,6 @@
 package com.netheal.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -11,8 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,11 +39,31 @@ fun TacticalCommandDeck() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(CyberTheme.Background).padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Transparent).padding(16.dp).verticalScroll(rememberScrollState())) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
 
         CorePerformanceMonitor()
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("BIO-METRIC STATUS", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                PostureAwarenessCard()
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("PROTOCOL ENTROPY", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                ProtocolEntropyRing()
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("NEURAL PACKET MESH", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(12.dp))
+        NeuralMeshVisualizer()
 
         Spacer(modifier = Modifier.height(24.dp))
         Text("PREDICTIVE THREAT FORECASTER", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -72,6 +95,99 @@ fun TacticalCommandDeck() {
         if (showLanScanner) LanScannerDialog(onDismiss = { showLanScanner = false })
 
         Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun ProtocolEntropyRing() {
+    val infiniteTransition = rememberInfiniteTransition(label = "ring")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(8000, easing = LinearEasing)),
+        label = "ring_rotate"
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth().height(100.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface),
+        border = BorderStroke(1.dp, CyberTheme.Border),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.size(60.dp).rotate(rotation)) {
+                drawArc(CyberTheme.Primary, 0f, 120f, false, style = Stroke(width = 4f))
+                drawArc(CyberTheme.Secondary, 130f, 100f, false, style = Stroke(width = 4f))
+                drawArc(CyberTheme.Danger, 240f, 90f, false, style = Stroke(width = 4f))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("TCP", color = CyberTheme.Primary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                Text("UDP", color = CyberTheme.Secondary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun NeuralMeshVisualizer() {
+    val nodes = remember { List(15) { Offset((Math.random() * 800).toFloat(), (Math.random() * 400).toFloat()) } }
+    val infiniteTransition = rememberInfiniteTransition(label = "mesh")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.2f, targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(animation = tween(1500), repeatMode = RepeatMode.Reverse),
+        label = "mesh_pulse"
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth().height(180.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface),
+        border = BorderStroke(1.dp, CyberTheme.Border),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                for (i in nodes.indices) {
+                    for (j in i + 1 until nodes.size) {
+                        val dist = (nodes[i] - nodes[j]).getDistance()
+                        if (dist < 250) {
+                            drawLine(
+                                color = CyberTheme.Primary.copy(alpha = (1.0f - dist / 250f) * 0.2f),
+                                start = nodes[i],
+                                end = nodes[j],
+                                strokeWidth = 1f
+                            )
+                        }
+                    }
+                }
+                nodes.forEach { node ->
+                    drawCircle(CyberTheme.Primary.copy(alpha = pulse * 0.3f), 8f, node)
+                    drawCircle(CyberTheme.Primary, 3f, node)
+                }
+            }
+            Text("LIVE TRAFFIC NODES", modifier = Modifier.padding(12.dp), color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun PostureAwarenessCard() {
+    var isMoving by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while(true) {
+            isMoving = Math.random() > 0.8
+            delay(5000)
+        }
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().height(100.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface),
+        border = BorderStroke(1.dp, CyberTheme.Border),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.Center) {
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (isMoving) CyberTheme.Warning else CyberTheme.Primary))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(if (isMoving) "ACTIVE" else "STATIC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("MOTION", color = Color.Gray, fontSize = 8.sp)
+        }
     }
 }
 
@@ -159,7 +275,6 @@ fun ThreatOriginMap() {
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                // Background grid
                 for (i in 0..10) {
                     val x = (size.width / 10) * i
                     drawLine(CyberTheme.Border.copy(alpha = 0.2f), Offset(x, 0f), Offset(x, size.height))
@@ -168,7 +283,6 @@ fun ThreatOriginMap() {
                     val y = (size.height / 6) * i
                     drawLine(CyberTheme.Border.copy(alpha = 0.2f), Offset(0f, y), Offset(size.width, y))
                 }
-                // Threat pings
                 blockLocations.forEach { loc ->
                     drawCircle(CyberTheme.Danger.copy(alpha = 0.3f), 15f, loc)
                     drawCircle(CyberTheme.Danger, 4f, loc)
