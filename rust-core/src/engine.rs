@@ -3,6 +3,7 @@ use crate::healer::Healer;
 use crate::booster::Booster;
 use crate::packet::{parse_v4, parse_dns_query, parse_sni};
 use crate::advanced::AdvancedEngine;
+use crate::analyzer::{analyze_behavior};
 
 pub struct Engine {
     firewall: Firewall,
@@ -17,6 +18,9 @@ pub struct Engine {
     buffer_size: u32,
     battery_safeguard: bool,
     advanced: AdvancedEngine,
+    packet_sizes: Vec<usize>,
+    inter_times: Vec<u64>,
+    ports: Vec<u16>,
 }
 
 impl Engine {
@@ -34,6 +38,9 @@ impl Engine {
             buffer_size: 16384,
             battery_safeguard: true,
             advanced: AdvancedEngine::new(),
+            packet_sizes: Vec::new(),
+            inter_times: Vec::new(),
+            ports: Vec::new(),
         }
     }
 
@@ -46,6 +53,18 @@ impl Engine {
             if let Some(_action) = self.advanced.run_scripts(&info.payload) { /* Perform action */ }
 
             let _path = self.booster.handle_link_bonding();
+
+            // Behavioral Analysis tracking
+            self.packet_sizes.push(data.len());
+            self.ports.push(info.dst_port);
+            if self.packet_sizes.len() > 20 { self.packet_sizes.remove(0); }
+            if self.ports.len() > 20 { self.ports.remove(0); }
+
+            if let Some((risk, pattern)) = analyze_behavior(&self.packet_sizes, &self.inter_times, &self.ports) {
+                 if risk > 80 {
+                     self.firewall.update_ai_risk(pattern, risk);
+                 }
+            }
 
             let mut domain = None;
             if info.protocol == 17 {
@@ -82,6 +101,7 @@ impl Engine {
     pub fn set_multipath_active(&mut self, enabled: bool) { self.booster.multipath_active = enabled; }
 
     pub fn set_app_rule(&mut self, app_id: &str, state: u8) { self.firewall.set_app_state(app_id, state); }
+    pub fn get_app_rule(&self, app_id: &str) -> u8 { self.firewall.get_app_state(app_id) }
     pub fn add_whitelist(&mut self, val: &str, is_domain: bool) { if is_domain { self.firewall.whitelist_domain(val); } else { self.firewall.whitelist_ip(val); } }
     pub fn remove_whitelist(&mut self, val: &str, is_domain: bool) { if is_domain { self.firewall.unwhitelist_domain(val); } else { self.firewall.unwhitelist_ip(val); } }
     pub fn add_blacklist(&mut self, val: &str, is_domain: bool) { if is_domain { self.firewall.block_domain(val); } else { self.firewall.block_ip(val); } }

@@ -11,6 +11,16 @@ data class ThreatLog(
     val action: String
 )
 
+@Entity(tableName = "incidents")
+data class Incident(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val description: String,
+    val severity: String, // CRITICAL, WARNING, INFO
+    val timestamp: Long = System.currentTimeMillis(),
+    val sourceApp: String? = null
+)
+
 @Entity(tableName = "firewall_rules")
 data class FirewallRule(
     @PrimaryKey val appId: String,
@@ -97,6 +107,13 @@ interface NetHealDao {
     @Query("DELETE FROM threat_logs")
     suspend fun deleteAllLogs()
 
+    @Query("SELECT * FROM incidents ORDER BY timestamp DESC")
+    suspend fun getAllIncidents(): List<Incident>
+    @Insert
+    suspend fun insertIncident(incident: Incident)
+    @Query("DELETE FROM incidents")
+    suspend fun deleteAllIncidents()
+
     @Query("SELECT * FROM firewall_rules")
     suspend fun getAllRules(): List<FirewallRule>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -169,7 +186,7 @@ interface NetHealDao {
     suspend fun getBypassApps(): List<BypassApp>
 }
 
-@Database(entities = [ThreatLog::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, HourlyUsage::class, UsageStats::class, SsidRule::class, PortRule::class, GeoRule::class], version = 13)
+@Database(entities = [ThreatLog::class, Incident::class, FirewallRule::class, BypassApp::class, WhitelistEntry::class, BlacklistEntry::class, CustomRule::class, Schedule::class, HourlyUsage::class, UsageStats::class, SsidRule::class, PortRule::class, GeoRule::class], version = 14)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun netHealDao(): NetHealDao
 }

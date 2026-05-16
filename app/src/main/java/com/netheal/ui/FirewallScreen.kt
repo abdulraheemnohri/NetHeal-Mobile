@@ -31,12 +31,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FirewallScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("ISOLATION", "POLICIES", "WIFI", "AI INTEL", "DPI")
+    val tabs = listOf("ISOLATION", "POLICIES", "INCIDENTS", "AI INTEL", "DPI")
     val scope = rememberCoroutineScope()
     var customRules by remember { mutableStateOf(listOf<CustomRule>()) }
     var portRules by remember { mutableStateOf(listOf<PortRule>()) }
@@ -87,9 +89,74 @@ fun FirewallScreen() {
             when (selectedTab) {
                 0 -> AppIsolationSection()
                 1 -> CustomRulesSection(customRules, portRules, geoRules, ::updateData)
-                2 -> WifiSecuritySection()
+                2 -> IncidentsSection()
                 3 -> IntelligenceSection()
                 4 -> DpiScriptingSection()
+            }
+        }
+    }
+}
+
+@Composable
+fun IncidentsSection() {
+    var incidents by remember { mutableStateOf(listOf<Incident>()) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            incidents = NetHealApp.database.netHealDao().getAllIncidents()
+            delay(5000)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("INCIDENT TIMELINE", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteAllIncidents() } }) {
+                Icon(Icons.Default.DeleteSweep, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (incidents.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("NO INCIDENTS DETECTED", color = Color.DarkGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(incidents) { incident ->
+                    IncidentItem(incident)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun IncidentItem(incident: Incident) {
+    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val time = sdf.format(Date(incident.timestamp))
+    val color = when(incident.severity) {
+        "CRITICAL" -> CyberTheme.Danger
+        "WARNING" -> CyberTheme.Warning
+        else -> CyberTheme.Primary
+    }
+
+    GlassCard {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(color).align(Alignment.CenterVertically))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(incident.title, color = color, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                    Text(time, color = Color.Gray, fontSize = 10.sp)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(incident.description, color = Color.LightGray, fontSize = 11.sp)
+                if (incident.sourceApp != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("SOURCE: ${incident.sourceApp}", color = CyberTheme.Secondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -258,19 +325,51 @@ fun CustomRulesSection(rules: List<CustomRule>, portRules: List<PortRule>, geoRu
 @Composable fun PortRuleList(ports: List<PortRule>, onUpdate: () -> Unit) { var showAddDialog by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope(); Column { CyberButton("BLOCK PORT", Icons.Default.Adjust, onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth()); Spacer(modifier = Modifier.height(16.dp)); LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ports) { p -> RuleItem("PORT: ${p.port}", p.description, true) { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deletePortRule(p); RustBridge.removePortBlock(p.port); withContext(Dispatchers.Main) { onUpdate() } } } } } }; if (showAddDialog) { var portStr by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = { showAddDialog = false }, containerColor = CyberTheme.Surface, title = { Text("Block Port", color = Color.White) }, text = { OutlinedTextField(value = portStr, onValueChange = { portStr = it }, label = { Text("Port Number") }) }, confirmButton = { TextButton(onClick = { val p = portStr.toIntOrNull() ?: 0; scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().savePortRule(PortRule(p, true, "Manual Block")); RustBridge.addPortBlock(p); withContext(Dispatchers.Main) { onUpdate(); showAddDialog = false } } }) { Text("BLOCK") } }) } }
 @Composable fun GeoBlockList(geo: List<GeoRule>, onUpdate: () -> Unit) { var showAddDialog by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope(); Column { CyberButton("ADD COUNTRY BLOCK", Icons.Default.Public, onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth()); Spacer(modifier = Modifier.height(16.dp)); LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(geo) { g -> RuleItem("COUNTRY: ${g.countryIso}", "Region Restricted", true) { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteGeoRule(g); RustBridge.removeGeoBlock(g.countryIso); withContext(Dispatchers.Main) { onUpdate() } } } } } }; if (showAddDialog) { var iso by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = { showAddDialog = false }, containerColor = CyberTheme.Surface, title = { Text("Block Country", color = Color.White) }, text = { OutlinedTextField(value = iso, onValueChange = { iso = it }, label = { Text("ISO Code (e.g. RU, CN)") }) }, confirmButton = { TextButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().saveGeoRule(GeoRule(iso, true)); RustBridge.addGeoBlock(iso); withContext(Dispatchers.Main) { onUpdate(); showAddDialog = false } } }) { Text("BLOCK") } }) } }
 
-@Composable fun WifiSecuritySection() { GlassCard { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Wifi, null, tint = CyberTheme.Primary); Spacer(modifier = Modifier.width(16.dp)); Column { Text("NetHeal_Secure_5G", color = Color.White, fontWeight = FontWeight.Bold); Text("Signal: -42dBm • Status: SECURE", color = Color.Gray, fontSize = 10.sp) } } } }
-
 @Composable fun IntelligenceSection() {
+    val trendingMalware = listOf("Mirai Botnet v2.4", "LockBit 3.0 Relay", "Cobalt Strike Beacon", "Anubis Banking Trojan", "FluBot Variant")
+    val c2Domains = listOf("c2-master.io", "relay-node-7.net", "miner.pool.x", "stealth-exfil.v3", "alpha-c2.cc")
+
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Text("AI INTELLIGENCE FEED", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("AI THREAT INTELLIGENCE HUB", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
+
         GlassCard {
-            Text("JULES AI STATUS: ACTIVE", color = CyberTheme.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Continuous telemetry analysis in progress. No critical threats detected in local apps.", color = Color.Gray, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CloudSync, null, tint = CyberTheme.Primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text("JULES AI CLOUD SYNC", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Synchronizing global malware signatures...", color = Color.Gray, fontSize = 10.sp)
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        ThreatOriginMap()
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("TRENDING MALWARE SIGNATURES", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(modifier = Modifier.height(8.dp))
+        trendingMalware.forEach { malware ->
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface), border = BorderStroke(1.dp, CyberTheme.Border)) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(CyberTheme.Danger))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(malware, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("ACTIVE C2 INFRASTRUCTURE", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(modifier = Modifier.height(8.dp))
+        c2Domains.forEach { domain ->
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface), border = BorderStroke(1.dp, CyberTheme.Border)) {
+                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(domain, color = Color.Cyan, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    Text("BLOCKED", color = CyberTheme.Danger, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 

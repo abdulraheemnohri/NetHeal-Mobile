@@ -388,3 +388,14 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_heal(
     engine.heal();
     std::ptr::null_mut()
 }
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAppRule(
+    mut env: JNIEnv,
+    _class: JClass,
+    app_id: JString,
+) -> jint {
+    let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
+    let engine = ENGINE.lock().unwrap();
+    engine.get_app_rule(&app_id_str) as jint
+}
