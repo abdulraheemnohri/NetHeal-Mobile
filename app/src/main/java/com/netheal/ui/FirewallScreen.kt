@@ -127,7 +127,7 @@ fun SimulationSandboxSection() {
         SimTrigger("C2 CALLBACK BEACON", "Simulate outbound encrypted heartbeat to known C2 node.") {
             scope.launch {
                 isSimulating = true; lastSimResult = "Executing: encrypted_beacon_v4.payload..."
-                delay(1500); lastSimResult = "ALERT: C2 pattern detected by JULES AI. Action: REJECTED."
+                delay(1500); lastSimResult = "ALERT: C2 pattern detected by DYNAMIC AI. Action: REJECTED."
                 isSimulating = false
                 NetHealApp.database.netHealDao().insertIncident(Incident(title = "SIMULATION: C2 BLOCKED", description = "AI neutralized simulated outbound beacon.", severity = "INFO"))
             }
@@ -411,7 +411,7 @@ fun CustomRulesSection(rules: List<CustomRule>, portRules: List<PortRule>, geoRu
                 Icon(Icons.Default.CloudSync, null, tint = CyberTheme.Primary)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text("JULES AI CLOUD SYNC", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("DYNAMIC AI CLOUD SYNC", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("Synchronizing global malware signatures...", color = Color.Gray, fontSize = 10.sp)
                 }
             }

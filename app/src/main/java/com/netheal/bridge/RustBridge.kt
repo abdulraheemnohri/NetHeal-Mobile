@@ -32,7 +32,7 @@ object RustBridge {
     external fun setBatterySafeguard(active: Boolean)
 
     // AI & Advanced
-    external fun setJulesActive(active: Boolean)
+    external fun setAiActive(active: Boolean)
     external fun setNeuralShield(active: Boolean)
     external fun updateAiRisk(packageName: String, score: Int)
     external fun applyDpiScript(pattern: String, action: String)
