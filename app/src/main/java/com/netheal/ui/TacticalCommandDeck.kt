@@ -2,19 +2,20 @@ package com.netheal.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.CircleShape
 import com.netheal.NetHealApp
 import com.netheal.bridge.RustBridge
 import com.netheal.data.HourlyUsage
@@ -35,19 +36,19 @@ fun TacticalCommandDeck() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF010409)).padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().background(CyberTheme.Background).padding(16.dp).verticalScroll(rememberScrollState())) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
 
         CorePerformanceMonitor()
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("PREDICTIVE THREAT FORECASTER", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("PREDICTIVE THREAT FORECASTER", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         PredictiveThreatForecaster()
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("REAL-TIME THREAT MAP", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("REAL-TIME INTERCEPTION MAP", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         ThreatOriginMap()
 
@@ -57,13 +58,13 @@ fun TacticalCommandDeck() {
         HistoricalTrafficChart(history)
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text("DIAGNOSTIC ARSENAL", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("DIAGNOSTIC ARSENAL", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
-        DiagnosticTool("DNS Resolver", "Resolve hostname to IP", Icons.Default.Language) { showDnsTool = true }
-        DiagnosticTool("Ping Utility", "Test host reachability", Icons.Default.TapAndPlay) { showPingTool = true }
-        DiagnosticTool("Whois Probe", "Fetch domain ownership", Icons.Default.Info) { showWhoisTool = true }
-        DiagnosticTool("LAN Discovery", "Map local network nodes", Icons.Default.SettingsEthernet) { showLanScanner = true }
+        DiagnosticTool("DNS Resolver", "Deep domain analysis", Icons.Default.Language) { showDnsTool = true }
+        DiagnosticTool("Ping Utility", "Core latency profiling", Icons.Default.TapAndPlay) { showPingTool = true }
+        DiagnosticTool("Whois Probe", "Asset ownership fetcher", Icons.Default.Info) { showWhoisTool = true }
+        DiagnosticTool("LAN Discovery", "Subnet topology mapper", Icons.Default.SettingsEthernet) { showLanScanner = true }
 
         if (showDnsTool) DnsToolDialog(onDismiss = { showDnsTool = false })
         if (showPingTool) PingToolDialog(onDismiss = { showPingTool = false })
@@ -76,15 +77,18 @@ fun TacticalCommandDeck() {
 
 @Composable
 fun PredictiveThreatForecaster() {
-    val forecast = listOf("14:00 - Data Exfiltration Prob: 12%", "18:00 - Port Scan Vulnerability: High", "22:00 - C2 Callback Pattern Spike", "02:00 - Background Sync Hazard: 45%")
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            forecast.forEach { item ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(4.dp).background(Color(0xFF00FFA3), CircleShape))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(item, color = Color.Gray, fontSize = 11.sp)
-                }
+    val forecast = listOf(
+        "14:00 - Data Exfiltration Risk: 12%",
+        "18:00 - Port Scan Susceptibility: HIGH",
+        "22:00 - C2 Beaconing Spike Forecasted",
+        "02:00 - Background Sync Entropy Alert"
+    )
+    GlassCard {
+        forecast.forEach { item ->
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (item.contains("HIGH")) CyberTheme.Danger else CyberTheme.Primary))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(item, color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -95,31 +99,27 @@ fun CorePerformanceMonitor() {
     var cpuLoad by remember { mutableFloatStateOf(0.12f) }
     var memoryUsage by remember { mutableStateOf("42 MB") }
     var neuralLatency by remember { mutableStateOf("0.8ms") }
-    var inferenceLoad by remember { mutableFloatStateOf(0.05f) }
 
     LaunchedEffect(Unit) {
         while(true) {
             cpuLoad = (0.05f + (Math.random() * 0.15f)).toFloat()
             memoryUsage = "${(40 + (Math.random() * 5).toInt())} MB"
             neuralLatency = "${String.format("%.2f", 0.5 + Math.random() * 0.5)}ms"
-            inferenceLoad = (Math.random() * 0.2f).toFloat()
             delay(2000)
         }
     }
 
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("CORE PERFORMANCE MONITOR", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PerformanceItem("CPU LOAD", "${(cpuLoad * 100).toInt()}%", cpuLoad)
-                PerformanceItem("KERNEL RAM", memoryUsage, 0.4f)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PerformanceItem("NEURAL LATENCY", neuralLatency, 0.2f)
-                PerformanceItem("INFERENCE LOAD", "${(inferenceLoad * 100).toInt()}%", inferenceLoad)
-            }
+    GlassCard {
+        Text("CORE PERFORMANCE MONITOR", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            PerformanceItem("CPU LOAD", "${(cpuLoad * 100).toInt()}%", cpuLoad)
+            PerformanceItem("KERNEL RAM", memoryUsage, 0.4f)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            PerformanceItem("NEURAL LATENCY", neuralLatency, 0.2f)
+            PerformanceItem("INFERENCE LOAD", "18%", 0.18f)
         }
     }
 }
@@ -132,7 +132,12 @@ fun PerformanceItem(label: String, value: String, progress: Float) {
             Text(value, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(6.dp))
-        LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth().height(2.dp).clip(CircleShape), color = Color(0xFF00FFA3), trackColor = Color(0xFF161B22))
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
+            color = CyberTheme.Primary,
+            trackColor = CyberTheme.Border
+        )
     }
 }
 
@@ -141,22 +146,35 @@ fun ThreatOriginMap() {
     val blockLocations = remember { mutableStateListOf<Offset>() }
     LaunchedEffect(Unit) {
         while (true) {
-            if (blockLocations.size > 8) blockLocations.removeAt(0)
+            if (blockLocations.size > 12) blockLocations.removeAt(0)
             blockLocations.add(Offset((Math.random() * 800).toFloat(), (Math.random() * 300).toFloat()))
-            delay(3000)
+            delay(2500)
         }
     }
-    Card(modifier = Modifier.fillMaxWidth().height(160.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
+    Card(
+        modifier = Modifier.fillMaxWidth().height(180.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface),
+        border = BorderStroke(1.dp, CyberTheme.Border),
+        shape = RoundedCornerShape(16.dp)
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                drawLine(Color.Gray.copy(alpha = 0.1f), Offset(0f, size.height/2), Offset(size.width, size.height/2))
-                drawLine(Color.Gray.copy(alpha = 0.1f), Offset(size.width/2, 0f), Offset(size.width/2, size.height))
+                // Background grid
+                for (i in 0..10) {
+                    val x = (size.width / 10) * i
+                    drawLine(CyberTheme.Border.copy(alpha = 0.2f), Offset(x, 0f), Offset(x, size.height))
+                }
+                for (i in 0..6) {
+                    val y = (size.height / 6) * i
+                    drawLine(CyberTheme.Border.copy(alpha = 0.2f), Offset(0f, y), Offset(size.width, y))
+                }
+                // Threat pings
                 blockLocations.forEach { loc ->
-                    drawCircle(Color.Red.copy(alpha = 0.4f), 10f, loc)
-                    drawCircle(Color.Red, 3f, loc)
+                    drawCircle(CyberTheme.Danger.copy(alpha = 0.3f), 15f, loc)
+                    drawCircle(CyberTheme.Danger, 4f, loc)
                 }
             }
-            Text("GLOBAL INTERCEPTIONS", modifier = Modifier.padding(12.dp), color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            Text("GLOBAL INTERCEPTIONS [SIM]", modifier = Modifier.padding(12.dp), color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

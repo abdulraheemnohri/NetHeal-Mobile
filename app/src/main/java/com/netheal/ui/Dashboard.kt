@@ -1,6 +1,7 @@
 package com.netheal.ui
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,11 +16,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,18 +37,14 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
     var securityScore by remember { mutableIntStateOf(85) }
     var blockedCount by remember { mutableLongStateOf(0L) }
     var scannedCount by remember { mutableLongStateOf(0L) }
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         while (true) {
-            val statsBytes = RustBridge.getAnalytics()
-            if (statsBytes.isNotEmpty()) {
-                try {
-                    blockedCount = RustBridge.getBlockedCount()
-                    scannedCount = RustBridge.getScannedCount()
-                    securityScore = RustBridge.getSecurityScore()
-                } catch (e: Exception) {}
-            }
+            try {
+                blockedCount = RustBridge.getBlockedCount()
+                scannedCount = RustBridge.getScannedCount()
+                securityScore = RustBridge.getSecurityScore()
+            } catch (e: Exception) {}
             delay(2000)
         }
     }
@@ -53,21 +52,19 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF010409))
+            .background(CyberTheme.Background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Header()
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // Master Shield
+        // Advanced Master Shield
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
+            modifier = Modifier.fillMaxWidth().height(240.dp),
             contentAlignment = Alignment.Center
         ) {
-            ShieldHexagon(isShieldActive)
+            ShieldPulseEffect(isShieldActive)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 IconButton(
                     onClick = {
@@ -75,41 +72,42 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
                         if (isShieldActive) RustBridge.startEngine() else RustBridge.stopEngine()
                         onToggleShield(isShieldActive)
                     },
-                    modifier = Modifier.size(80.dp)
+                    modifier = Modifier.size(120.dp)
                 ) {
                     Icon(
-                        Icons.Default.Shield,
+                        if (isShieldActive) Icons.Default.Shield else Icons.Default.ShieldMoon,
                         contentDescription = null,
-                        modifier = Modifier.size(60.dp),
-                        tint = if (isShieldActive) Color(0xFF00FFA3) else Color.Red
+                        modifier = Modifier.size(80.dp),
+                        tint = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger
                     )
                 }
                 Text(
-                    if (isShieldActive) "SYSTEM PROTECTED" else "SYSTEM VULNERABLE",
-                    color = if (isShieldActive) Color(0xFF00FFA3) else Color.Red,
+                    if (isShieldActive) "SYSTEM STATUS: SECURE" else "SYSTEM STATUS: VULNERABLE",
+                    color = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Tactical Stats
+        // Tactical Metrics
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatCard("SCANNED", scannedCount.toString(), Icons.Default.Radar, Color.Cyan)
-            StatCard("BLOCKED", blockedCount.toString(), Icons.Default.Security, Color.Red)
-            StatCard("HEALTH", "$securityScore%", Icons.Default.Favorite, Color(0xFF00FFA3))
+            StatCard("TRAFFIC", scannedCount.toString(), Icons.Default.Radar, CyberTheme.Secondary)
+            StatCard("THREATS", blockedCount.toString(), Icons.Default.Security, CyberTheme.Danger)
+            StatCard("INTEGRITY", "${securityScore}%", Icons.Default.Favorite, CyberTheme.Primary)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Neural Terminal
+        // Neural Terminal (Modern Layout)
         NeuralTerminal()
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Advisory
+        // Professional Advisory
         AdvisorySection()
 
         Spacer(modifier = Modifier.height(40.dp))
@@ -117,120 +115,22 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
 }
 
 @Composable
-fun NeuralTerminal() {
-    val logs = remember { mutableStateListOf<String>() }
-    var commandInput by remember { mutableStateOf("") }
+fun ShieldPulseEffect(active: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "shield_pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f, targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(animation = tween(2000), repeatMode = RepeatMode.Reverse),
+        label = "pulse_scale"
+    )
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(10000, easing = LinearEasing)),
+        label = "pulse_rotate"
+    )
 
-    LaunchedEffect(Unit) {
-        val events = listOf(
-            "Kernel: Initializing memory protection...",
-            "AI: Evaluating traffic heuristics.",
-            "Engine: PSH optimization applied.",
-            "Shield: Adaptive entropy check passed.",
-            "DPI: Match signature detected in port 443.",
-            "NetHeal: OMEGA speed engine synchronized."
-        )
-        while (true) {
-            logs.add(0, "> ${events.random()}")
-            if (logs.size > 20) logs.removeLast()
-            delay(3000)
-        }
-    }
-
-    Column {
-        Text("NEURAL TERMINAL", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth().height(180.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)),
-            border = BorderStroke(1.dp, Color(0xFF161B22))
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Box(modifier = Modifier.weight(1f)) {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(logs) { log ->
-                            Text(
-                                log,
-                                color = Color(0xFF00FFA3).copy(alpha = 0.8f),
-                                fontSize = 10.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("$", color = Color(0xFF00FFA3), modifier = Modifier.padding(end = 8.dp))
-                    BasicTextField(
-                        value = commandInput,
-                        onValueChange = { commandInput = it },
-                        modifier = Modifier.weight(1f),
-                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                        cursorBrush = Brush.verticalGradient(listOf(Color(0xFF00FFA3), Color(0xFF00FFA3)))
-                    )
-                    IconButton(onClick = {
-                        if (commandInput.startsWith("/")) {
-                            logs.add(0, "> Executing $commandInput...")
-                            when (commandInput) {
-                                "/flush" -> RustBridge.clearLogs()
-                                "/stats" -> logs.add(0, "Stats: Scanned ${RustBridge.getScannedCount()} Blocked ${RustBridge.getBlockedCount()}")
-                            }
-                        }
-                        commandInput = ""
-                    }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Send, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AdvisorySection() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
-        border = BorderStroke(1.dp, Color(0xFF1C2128))
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Info, null, tint = Color(0xFF00FFA3))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text("AI SECURITY ADVISORY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text("Zero-Day protection is currently active. 3 potential threats neutralized in the last hour.", color = Color.Gray, fontSize = 11.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun StatCard(label: String, value: String, icon: ImageVector, color: Color) {
-    Card(
-        modifier = Modifier
-            .width(105.dp)
-            .height(110.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)),
-        border = BorderStroke(1.dp, Color(0xFF161B22))
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(value, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-            Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun ShieldHexagon(active: Boolean) {
-    Canvas(modifier = Modifier.size(180.dp)) {
+    Canvas(modifier = Modifier.size(220.dp).rotate(rotation)) {
         val path = Path().apply {
-            val radius = size.minDimension / 2
+            val radius = (size.minDimension / 2) * scale
             val centerX = size.width / 2
             val centerY = size.height / 2
             for (i in 0..5) {
@@ -243,12 +143,112 @@ fun ShieldHexagon(active: Boolean) {
         }
         drawPath(
             path = path,
-            color = if (active) Color(0xFF00FFA3).copy(alpha = 0.1f) else Color.Red.copy(alpha = 0.1f)
+            color = if (active) CyberTheme.Primary.copy(alpha = 0.05f) else CyberTheme.Danger.copy(alpha = 0.05f)
         )
         drawPath(
             path = path,
-            color = if (active) Color(0xFF00FFA3) else Color.Red,
-            style = Stroke(width = 2.dp.toPx())
+            color = if (active) CyberTheme.Primary else CyberTheme.Danger,
+            style = Stroke(width = 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f))
         )
+    }
+}
+
+@Composable
+fun NeuralTerminal() {
+    val logs = remember { mutableStateListOf<String>() }
+    var commandInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        val events = listOf(
+            "KERNEL :: Thread isolation priority set to HIGH",
+            "AI :: Analyzing suspicious TCP stream from PID 4201",
+            "SHIELD :: Entropy threshold adjusted for deep packet inspection",
+            "BOOSTER :: Link bonding optimized (WIFI + SIM-1)",
+            "DPI :: Malicious signature detected - Action: DROPPED",
+            "SYSTEM :: Omega engine health status nominal"
+        )
+        while (true) {
+            logs.add(0, "> ${events.random()}")
+            if (logs.size > 15) logs.removeLast()
+            delay(4000)
+        }
+    }
+
+    Column {
+        Text("NEURAL COMMAND TERMINAL", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+        GlassCard(modifier = Modifier.height(200.dp)) {
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(logs) { log ->
+                        Text(
+                            log,
+                            color = CyberTheme.Primary.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            Divider(color = CyberTheme.Border, modifier = Modifier.padding(vertical = 8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("user@netheal:~$", color = CyberTheme.Secondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(8.dp))
+                BasicTextField(
+                    value = commandInput,
+                    onValueChange = { commandInput = it },
+                    modifier = Modifier.weight(1f),
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    cursorBrush = Brush.verticalGradient(listOf(CyberTheme.Primary, CyberTheme.Primary))
+                )
+                IconButton(onClick = {
+                    if (commandInput.isNotBlank()) {
+                        logs.add(0, "$ ${commandInput}")
+                        if (commandInput == "/flush") RustBridge.clearLogs()
+                        commandInput = ""
+                    }
+                }, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.KeyboardArrowRight, null, tint = CyberTheme.Primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdvisorySection() {
+    GlassCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(CyberTheme.Primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Info, null, tint = CyberTheme.Primary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text("AI SECURITY ADVISORY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Zero-Day heuristics optimized for current network profile.", color = Color.Gray, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun StatCard(label: String, value: String, icon: ImageVector, color: Color) {
+    Card(
+        modifier = Modifier.width(105.dp).height(110.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberTheme.Surface),
+        border = BorderStroke(1.dp, CyberTheme.Border),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, null, tint = color.copy(alpha = 0.8f), modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(value, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+            Text(label, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }

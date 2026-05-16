@@ -29,65 +29,64 @@ fun SettingsScreen() {
     var aiSensitivity by remember { mutableFloatStateOf(prefs.getFloat("ai_sensitivity", 0.5f)) }
     var boosterActive by remember { mutableStateOf(prefs.getBoolean("booster_active", false)) }
     var multipathActive by remember { mutableStateOf(prefs.getBoolean("multipath_active", false)) }
-    var shapingMode by remember { mutableIntStateOf(prefs.getInt("shaping_mode", 0)) }
-    var bufferSize by remember { mutableIntStateOf(prefs.getInt("buffer_size", 16384)) }
     var batterySafeguard by remember { mutableStateOf(prefs.getBoolean("battery_safeguard", true)) }
     var honeypotActive by remember { mutableStateOf(prefs.getBoolean("honeypot_active", false)) }
     var fingerprintType by remember { mutableIntStateOf(prefs.getInt("fingerprint_type", 0)) }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF010409)).verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(CyberTheme.Background).verticalScroll(rememberScrollState()).padding(16.dp)) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
-        Text("SYSTEM CONFIGURATION", color = Color(0xFF00FFA3), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("SYSTEM CONFIGURATION", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Jules AI Settings
-        SettingSection("JULES AI INTEGRATION") {
+        // AI Settings
+        SettingCategory("JULES AI CO-PROCESSOR") {
             OutlinedTextField(
                 value = julesKey,
                 onValueChange = {
                     julesKey = it
                     prefs.edit().putString("jules_api_key", it).apply()
                 },
-                label = { Text("Jules API Key", color = Color.Gray) },
+                label = { Text("Jules API Access Key", color = Color.Gray) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = CyberTheme.Primary),
+                shape = RoundedCornerShape(12.dp),
                 trailingIcon = {
                     IconButton(onClick = {
                         julesActive = !julesActive
                         prefs.edit().putBoolean("jules_api_active", julesActive).apply()
+                        RustBridge.setJulesActive(julesActive)
                     }) {
-                        Icon(Icons.Default.CloudSync, null, tint = if (julesActive) Color(0xFF00FFA3) else Color.Gray)
+                        Icon(Icons.Default.CloudSync, null, tint = if (julesActive) CyberTheme.Primary else Color.Gray)
                     }
                 }
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("AI Sensitivity", color = Color.Gray, modifier = Modifier.weight(1f), fontSize = 12.sp)
-                Slider(value = aiSensitivity, onValueChange = {
-                    aiSensitivity = it
-                    prefs.edit().putFloat("ai_sensitivity", it).apply()
-                }, modifier = Modifier.weight(2f))
+                Text("Inspection Depth", color = Color.Gray, modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Slider(
+                    value = aiSensitivity, onValueChange = {
+                        aiSensitivity = it
+                        prefs.edit().putFloat("ai_sensitivity", it).apply()
+                    },
+                    modifier = Modifier.weight(2f),
+                    colors = SliderDefaults.colors(thumbColor = CyberTheme.Primary, activeTrackColor = CyberTheme.Primary)
+                )
             }
         }
 
         // Cyber Deception
-        SettingSection("CYBER DECEPTION") {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Honeypot Mode", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text("Lure attackers into fake services", color = Color.Gray, fontSize = 10.sp)
-                }
-                Switch(checked = honeypotActive, onCheckedChange = {
-                    honeypotActive = it
-                    prefs.edit().putBoolean("honeypot_active", it).apply()
-                    RustBridge.setHoneypotMode(it)
-                })
+        SettingCategory("STEALTH & DECEPTION") {
+            ModernSettingToggle("Honeypot Mode", honeypotActive, "Lure and trap potential network scans") {
+                honeypotActive = it
+                prefs.edit().putBoolean("honeypot_active", it).apply()
+                RustBridge.setHoneypotMode(it)
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Fingerprint Masking", color = Color.Gray, fontSize = 12.sp)
-            val masks = listOf("None", "Windows 11", "Linux Kernel", "iOS 17")
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Text("OS Fingerprint Mask", color = Color.Gray, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            val masks = listOf("NONE", "WIN-11", "LINUX", "IOS-17")
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 masks.forEachIndexed { index, name ->
                     FilterChip(
                         selected = fingerprintType == index,
@@ -96,102 +95,65 @@ fun SettingsScreen() {
                             prefs.edit().putInt("fingerprint_type", index).apply()
                             RustBridge.setFingerprintMask(index)
                         },
-                        label = { Text(name, fontSize = 10.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF00FFA3), selectedLabelColor = Color.Black)
+                        label = { Text(name, fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = CyberTheme.Primary, selectedLabelColor = Color.Black),
+                        shape = RoundedCornerShape(8.dp)
                     )
                 }
             }
         }
 
-        // Internet Booster & Link Bonding
-        SettingSection("OMEGA SPEED ENGINE") {
-            SettingToggle("Internet Speed Boost", boosterActive, "Optimizes TCP/IP for low latency") {
+        // Performance
+        SettingCategory("OMEGA ENGINE TUNING") {
+            ModernSettingToggle("Packet Optimization", boosterActive, "Inject PSH flags for low-latency TCP") {
                 boosterActive = it
                 prefs.edit().putBoolean("booster_active", it).apply()
-                RustBridge.setBooster(it)
+                RustBridge.setBoosterActive(it)
             }
-            SettingToggle("Link Bonding (Multipath)", multipathActive, "Aggregate WiFi + SIM data") {
+            ModernSettingToggle("Link Bonding", multipathActive, "Aggregate WiFi + Cellular data streams") {
                 multipathActive = it
                 prefs.edit().putBoolean("multipath_active", it).apply()
-                RustBridge.setMultipath(it)
+                RustBridge.setMultipathActive(it)
             }
-        }
-
-        // Traffic Shaping
-        SettingSection("TRAFFIC SHAPING") {
-            Text("Optimization Mode", color = Color.Gray, fontSize = 12.sp)
-            val modes = listOf("Default", "Gaming", "Streaming", "Battery")
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                modes.forEachIndexed { index, name ->
-                    FilterChip(
-                        selected = shapingMode == index,
-                        onClick = {
-                            shapingMode = index
-                            prefs.edit().putInt("shaping_mode", index).apply()
-                            RustBridge.setShapingMode(index)
-                        },
-                        label = { Text(name, fontSize = 10.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF00FFA3), selectedLabelColor = Color.Black)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Buffer Size: ${bufferSize/1024}KB", color = Color.Gray, modifier = Modifier.weight(1f), fontSize = 12.sp)
-                Slider(value = bufferSize.toFloat(), onValueChange = {
-                    bufferSize = it.toInt()
-                    prefs.edit().putInt("buffer_size", it.toInt()).apply()
-                    RustBridge.setBufferSize(it.toInt())
-                }, valueRange = 4096f..65536f, modifier = Modifier.weight(2f))
-            }
-        }
-
-        // Power Management
-        SettingSection("POWER MANAGEMENT") {
-            SettingToggle("Battery Safeguard", batterySafeguard, "Reduce CPU polling when battery < 20%") {
+            ModernSettingToggle("Battery Safeguard", batterySafeguard, "Dynamic scaling for power efficiency") {
                 batterySafeguard = it
                 prefs.edit().putBoolean("battery_safeguard", it).apply()
                 RustBridge.setBatterySafeguard(it)
             }
         }
 
-        // Database & Info
-        SettingSection("DATA & KNOWLEDGE") {
-            Button(onClick = { RustBridge.clearLogs() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) {
-                Icon(Icons.Default.DeleteSweep, null, tint = Color.Red)
-                Spacer(modifier = Modifier.width(8.dp)); Text("PURGE ALL LOGS", color = Color.White)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = { /* Open Wiki */ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161B22))) {
-                Icon(Icons.Default.MenuBook, null, tint = Color(0xFF00FFA3))
-                Spacer(modifier = Modifier.width(8.dp)); Text("NEURAL KNOWLEDGE BASE", color = Color.White)
-            }
+        // Data
+        SettingCategory("DATA MANAGEMENT") {
+            CyberButton("PURGE TELEMETRY LOGS", Icons.Default.DeleteSweep, onClick = { RustBridge.clearLogs() }, modifier = Modifier.fillMaxWidth(), isDanger = true)
+            Spacer(modifier = Modifier.height(12.dp))
+            CyberButton("NEURAL KNOWLEDGE BASE", Icons.Default.MenuBook, onClick = { /* Open Wiki */ }, modifier = Modifier.fillMaxWidth())
         }
 
         Spacer(modifier = Modifier.height(40.dp))
-        Text("NetHeal Mobile v2.0 - Omega Build", color = Color.DarkGray, fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+        Text("NetHeal Absolute v2.1.0-OMEGA", color = Color.DarkGray, fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally), fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(40.dp))
     }
 }
 
 @Composable
-fun SettingSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+fun SettingCategory(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
-        Text(title, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text(title, color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(8.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)), border = BorderStroke(1.dp, Color(0xFF161B22))) {
-            Column(modifier = Modifier.padding(16.dp)) { content() }
-        }
+        GlassCard { content() }
     }
 }
 
 @Composable
-fun SettingToggle(title: String, checked: Boolean, desc: String, onCheckedChange: (Boolean) -> Unit) {
+fun ModernSettingToggle(title: String, checked: Boolean, desc: String, onCheckedChange: (Boolean) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Text(desc, color = Color.Gray, fontSize = 10.sp)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked, onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedThumbColor = CyberTheme.Primary, checkedTrackColor = CyberTheme.Primary.copy(alpha = 0.5f))
+        )
     }
 }
