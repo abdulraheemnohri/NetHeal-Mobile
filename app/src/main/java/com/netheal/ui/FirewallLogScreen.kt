@@ -25,6 +25,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -88,7 +92,13 @@ fun FirewallLogScreen() {
         }, confirmButton = {
             if (!isExporting) {
                 TextButton(onClick = {
-                    scope.launch { isExporting = true; delay(3000); isExporting = false; showExportDialog = false; Toast.makeText(context, "pcap_forensics.pcap saved", Toast.LENGTH_LONG).show() }
+                    scope.launch {
+                        isExporting = true
+                        val exportedPath = withContext(Dispatchers.IO) { exportFilteredPcap(context, filteredLogs, searchQuery) }
+                        isExporting = false
+                        showExportDialog = false
+                        Toast.makeText(context, "Filtered PCAP saved: $exportedPath", Toast.LENGTH_LONG).show()
+                    }
                 }) { Text("EXPORT", color = Color(0xFF00FFA3)) }
             }
         }, dismissButton = { if(!isExporting) { TextButton(onClick = { showExportDialog = false }) { Text("CANCEL", color = Color.Gray) } } })
@@ -108,4 +118,42 @@ fun LogItem(log: ThreatLog, sdf: SimpleDateFormat) {
             Text(log.action, color = if (log.action == "DROPPED") Color.Red else Color(0xFF00FFA3), fontSize = 9.sp, fontWeight = FontWeight.Black)
         }
     }
+}
+
+
+private fun exportFilteredPcap(context: android.content.Context, logs: List<ThreatLog>, searchQuery: String): String {
+    val exportDir = File(context.getExternalFilesDir(null), "exports").apply { mkdirs() }
+    val safeQuery = searchQuery.ifBlank { "all" }.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    val output = File(exportDir, "netheal_${safeQuery}_${System.currentTimeMillis()}.pcap")
+
+    FileOutputStream(output).use { stream ->
+        stream.writeLeInt(0xa1b2c3d4.toInt())
+        stream.writeLeShort(2)
+        stream.writeLeShort(4)
+        stream.writeLeInt(0)
+        stream.writeLeInt(0)
+        stream.writeLeInt(65535)
+        stream.writeLeInt(147)
+
+        logs.forEach { log ->
+            val payload = "${log.timestamp}|${log.domain}|${log.action}|${log.riskScore}".toByteArray(Charsets.UTF_8)
+            val seconds = (log.timestamp / 1000).toInt()
+            val micros = ((log.timestamp % 1000) * 1000).toInt()
+            stream.writeLeInt(seconds)
+            stream.writeLeInt(micros)
+            stream.writeLeInt(payload.size)
+            stream.writeLeInt(payload.size)
+            stream.write(payload)
+        }
+    }
+
+    return output.absolutePath
+}
+
+private fun FileOutputStream.writeLeShort(value: Int) {
+    write(ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value.toShort()).array())
+}
+
+private fun FileOutputStream.writeLeInt(value: Int) {
+    write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array())
 }

@@ -60,6 +60,13 @@ class MainActivity : ComponentActivity() {
                                 colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
                             )
                             NavigationBarItem(
+                                icon = { Icon(Icons.Default.Article, null) },
+                                label = { Text("LOGS") },
+                                selected = currentRoute == "logs",
+                                onClick = { navController.navigate("logs") },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
+                            )
+                            NavigationBarItem(
                                 icon = { Icon(Icons.Default.Settings, null) },
                                 label = { Text("CONFIG") },
                                 selected = currentRoute == "settings",
@@ -74,6 +81,7 @@ class MainActivity : ComponentActivity() {
                         composable("firewall") { FirewallScreen() }
                         composable("audit") { SecurityAuditSection() }
                         composable("tactical") { TacticalCommandDeck() }
+                        composable("logs") { FirewallLogScreen() }
                         composable("settings") { SettingsScreen() }
                     }
                 }
@@ -82,6 +90,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toggleVpn(enabled: Boolean) {
+        if (!enabled) {
+            startService(Intent(this, NetHealVpnService::class.java).setAction("STOP"))
+            return
+        }
+
         val intent = VpnService.prepare(this)
         if (intent != null) {
             @Suppress("DEPRECATION")

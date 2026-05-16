@@ -25,13 +25,20 @@ pub struct ThreatReport {
 
 pub fn calculate_entropy(s: &str) -> f32 {
     let mut frequencies = HashMap::new();
-    for c in s.chars() { *frequencies.entry(c).or_insert(0) += 1; }
+    for c in s.chars() {
+        *frequencies.entry(c).or_insert(0) += 1;
+    }
     let len = s.len() as f32;
-    if len == 0.0 { return 0.0; }
-    frequencies.values().map(|&count| {
-        let p = count as f32 / len;
-        -p * p.log2()
-    }).sum()
+    if len == 0.0 {
+        return 0.0;
+    }
+    frequencies
+        .values()
+        .map(|&count| {
+            let p = count as f32 / len;
+            -p * p.log2()
+        })
+        .sum()
 }
 
 pub fn analyze_threat(request_rate: u32, burst_ratio: f32, domain: Option<&str>) -> ThreatReport {
@@ -63,11 +70,16 @@ pub fn analyze_threat(request_rate: u32, burst_ratio: f32, domain: Option<&str>)
         t_type = ThreatType::Bot;
     }
 
-    ThreatReport { risk_score: score.min(100), threat_type: t_type }
+    ThreatReport {
+        risk_score: score.min(100),
+        threat_type: t_type,
+    }
 }
 
 pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
-    if data.len() < 20 { return Some((90, ThreatType::Malformed)); }
+    if data.len() < 20 {
+        return Some((90, ThreatType::Malformed));
+    }
 
     let version = data[0] >> 4;
     if version != 4 && version != 6 {
@@ -76,15 +88,17 @@ pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
 
     let ihl = (data[0] & 0x0F) as usize * 4;
     if data.len() > ihl + 4 && data[9] == 6 {
-        let d_port = ((data[ihl+2] as u16) << 8) | data[ihl+3] as u16;
-        if d_port == 80 { return Some((40, ThreatType::InsecureHTTP)); }
+        let d_port = ((data[ihl + 2] as u16) << 8) | data[ihl + 3] as u16;
+        if d_port == 80 {
+            return Some((40, ThreatType::InsecureHTTP));
+        }
     }
 
     // Advanced: Detect rapid small packet bursts matching C2 exfiltration
     if data.len() < 100 && data.len() > 60 {
         // Mock: specific signatures in small packets
         for i in 0..data.len().saturating_sub(4) {
-            if &data[i..i+4] == [0xDE, 0xAD, 0xBE, 0xEF] {
+            if &data[i..i + 4] == [0xDE, 0xAD, 0xBE, 0xEF] {
                 return Some((100, ThreatType::Exfiltration));
             }
         }
@@ -94,16 +108,27 @@ pub fn detect_anomalies(data: &[u8]) -> Option<(u8, ThreatType)> {
 }
 
 /// Behavioral analysis: Fingerprint traffic by packet size and timing patterns
-pub fn analyze_behavior(packet_sizes: &[usize], inter_arrival_times: &[u64], ports: &[u16]) -> Option<(u8, String)> {
-    if packet_sizes.len() < 5 { return None; }
+pub fn analyze_behavior(
+    packet_sizes: &[usize],
+    inter_arrival_times: &[u64],
+    ports: &[u16],
+) -> Option<(u8, String)> {
+    if packet_sizes.len() < 5 {
+        return None;
+    }
 
     // Detect Port Knocking (rapid connection attempts to sequential ports)
     if ports.len() >= 3 {
         let mut sequential = true;
-        for i in 0..ports.len()-1 {
-            if (ports[i+1] as i32 - ports[i] as i32).abs() > 5 { sequential = false; break; }
+        for i in 0..ports.len() - 1 {
+            if (ports[i + 1] as i32 - ports[i] as i32).abs() > 5 {
+                sequential = false;
+                break;
+            }
         }
-        if sequential { return Some((95, "PORT_KNOCKING_DETECTED".to_string())); }
+        if sequential {
+            return Some((95, "PORT_KNOCKING_DETECTED".to_string()));
+        }
     }
 
     // Detect Data Exfiltration (large outbound bursts followed by silence)
@@ -118,7 +143,8 @@ pub fn analyze_behavior(packet_sizes: &[usize], inter_arrival_times: &[u64], por
     }
 
     if inter_arrival_times.len() > 5 {
-        let avg_time: u64 = inter_arrival_times.iter().sum::<u64>() / inter_arrival_times.len() as u64;
+        let avg_time: u64 =
+            inter_arrival_times.iter().sum::<u64>() / inter_arrival_times.len() as u64;
         if avg_time < 50 {
             return Some((75, "HIGH_FREQ_AUTOMATION".to_string()));
         }

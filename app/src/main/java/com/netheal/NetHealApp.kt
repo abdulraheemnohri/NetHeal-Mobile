@@ -28,17 +28,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.*
+
+private const val DEFAULT_OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+private const val DEFAULT_OPENROUTER_MODEL = "openrouter/owl-alpha"
 
 class NetHealApp : Application(), SensorEventListener {
     private var sensorManager: SensorManager? = null
     private var lastMotionTime: Long = 0
     private var isMotionShieldActive = false
     private var lastForegroundApp: String = ""
+    private var lastAiSyncTime: Long = 0L
 
     companion object {
         lateinit var database: AppDatabase
@@ -111,8 +118,12 @@ class NetHealApp : Application(), SensorEventListener {
                 autoSwitchNeuralProfile()
             }
 
-            if (prefs.getBoolean("jules_api_active", false)) {
-                syncJulesThreatIntelligence(prefs.getString("jules_api_key", "") ?: "")
+            if (prefs.getBoolean("ai_enabled", false)) {
+                val aiSyncIntervalMs = prefs.getInt("ai_sync_interval_seconds", 120).coerceAtLeast(30) * 1000L
+                if (System.currentTimeMillis() - lastAiSyncTime >= aiSyncIntervalMs) {
+                    lastAiSyncTime = System.currentTimeMillis()
+                    syncDynamicAiThreatIntelligence(prefs)
+                }
                 runPredictiveAnalytics(prefs)
             }
             checkBatteryStatus(prefs)
@@ -182,7 +193,7 @@ class NetHealApp : Application(), SensorEventListener {
         if (now.hour >= 23 || now.hour < 5) {
             if (prefs.getBoolean("neural_shield", true)) {
                 RustBridge.setSecurityLevel(3)
-                Log.i("JulesAI", "Predictive Analytics: Enabling Night-Shield protection.")
+                Log.i("DynamicAI", "Predictive Analytics: Enabling Night-Shield protection.")
             }
         }
         val blocked = RustBridge.getBlockedCount()
@@ -193,23 +204,154 @@ class NetHealApp : Application(), SensorEventListener {
         }
     }
 
-    private suspend fun syncJulesThreatIntelligence(apiKey: String) {
-        if (apiKey.isEmpty()) return
+    private suspend fun syncDynamicAiThreatIntelligence(prefs: android.content.SharedPreferences) {
+        val analyticsBytes = RustBridge.getAnalytics()
+        if (analyticsBytes.isEmpty()) return
+
+        val analytics = try {
+            JSONObject(String(analyticsBytes))
+        } catch (e: Exception) {
+            Log.e("DynamicAI", "Invalid analytics payload", e)
+            return
+        }
+
+        val apiUrl = prefs.getString("ai_api_url", DEFAULT_OPENROUTER_API_URL)?.ifBlank { DEFAULT_OPENROUTER_API_URL } ?: DEFAULT_OPENROUTER_API_URL
+        val model = prefs.getString("ai_model", DEFAULT_OPENROUTER_MODEL)?.ifBlank { DEFAULT_OPENROUTER_MODEL } ?: DEFAULT_OPENROUTER_MODEL
+        val apiKey = prefs.getString("ai_api_key", "") ?: ""
+        val openRouterEndpoint = apiUrl.contains("openrouter.ai", ignoreCase = true)
+        val fallbackEnabled = prefs.getBoolean("ai_local_fallback", true)
+        val telemetry = buildAiTelemetry(analytics, prefs.getBoolean("ai_redact_telemetry", true))
+
+        if (apiKey.isBlank() && openRouterEndpoint) {
+            if (fallbackEnabled) applyLocalTelemetryHeuristic(analytics, prefs)
+            return
+        }
+
         try {
-            val analyticsBytes = RustBridge.getAnalytics()
-            if (analyticsBytes.isNotEmpty()) {
-                val analytics = JSONObject(String(analyticsBytes))
-                val usage = analytics.optJSONObject("usage")
-                usage?.keys()?.forEach { appId ->
-                    val appData = usage.getJSONObject(appId)
-                    if (appData.getLong("p") > 50000 && !appId.startsWith("com.android")) {
-                        RustBridge.setAppRule(appId, 2)
-                        database.netHealDao().insertIncident(Incident(title = "AUTO FIREWALL: ISOLATED", description = "App $appId restricted for background exfiltration.", severity = "WARNING", sourceApp = appId))
-                        triggerHapticFeedback(VibrationEffect.EFFECT_TICK)
-                    }
-                }
+            val directive = requestAiDirective(apiUrl, model, apiKey, telemetry, openRouterEndpoint)
+            applyAiDirective(directive, model, prefs)
+        } catch (e: Exception) {
+            Log.e("DynamicAI", "Remote sync failed; applying local heuristic", e)
+            if (fallbackEnabled) applyLocalTelemetryHeuristic(analytics, prefs)
+        }
+    }
+
+    private fun requestAiDirective(apiUrl: String, model: String, apiKey: String, analytics: JSONObject, openRouterEndpoint: Boolean): JSONObject {
+        val connection = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 8000
+            readTimeout = 12000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            if (apiKey.isNotBlank()) setRequestProperty("Authorization", "Bearer $apiKey")
+            if (openRouterEndpoint) {
+                setRequestProperty("HTTP-Referer", "https://netheal.local")
+                setRequestProperty("X-Title", "NetHeal Mobile")
             }
-        } catch (e: Exception) { Log.e("JulesAI", "Sync failed", e) }
+        }
+
+        val body = JSONObject()
+            .put("model", model)
+            .put("temperature", 0.1)
+            .put("max_tokens", 500)
+            .put("messages", JSONArray()
+                .put(JSONObject()
+                    .put("role", "system")
+                    .put("content", "You are NetHeal's mobile threat co-processor. Return only compact JSON with optional securityLevel and rules. Each rule must include appId, action monitor|isolate, risk, and reason."))
+                .put(JSONObject()
+                    .put("role", "user")
+                    .put("content", "Analyze this Android VPN telemetry and return enforcement JSON: $analytics")))
+
+        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        val responseCode = connection.responseCode
+        val responseText = if (responseCode in 200..299) {
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } else {
+            connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
+        }
+        connection.disconnect()
+
+        if (responseCode !in 200..299) error("AI API returned $responseCode: $responseText")
+        val response = JSONObject(responseText)
+        val content = response
+            .optJSONArray("choices")
+            ?.optJSONObject(0)
+            ?.optJSONObject("message")
+            ?.optString("content")
+            .orEmpty()
+        return JSONObject(extractJsonObject(content))
+    }
+
+    private suspend fun applyAiDirective(directive: JSONObject, model: String, prefs: android.content.SharedPreferences) {
+        val level = directive.optInt("securityLevel", -1)
+        if (level in 0..4) RustBridge.setSecurityLevel(level)
+
+        val autoIsolate = prefs.getBoolean("ai_auto_isolate", true)
+        val riskThreshold = prefs.getInt("ai_risk_threshold", 85)
+        val rules = directive.optJSONArray("rules") ?: JSONArray()
+        for (index in 0 until rules.length()) {
+            val rule = rules.optJSONObject(index) ?: continue
+            val appId = rule.optString("appId")
+            if (appId.isBlank()) continue
+
+            val action = rule.optString("action", "monitor")
+            val risk = rule.optInt("risk", 0)
+            if (action == "isolate" || risk >= riskThreshold) {
+                if (autoIsolate) RustBridge.setAppRule(appId, 2)
+                database.netHealDao().insertIncident(Incident(
+                    title = if (autoIsolate) "AI FIREWALL: ISOLATED" else "AI FIREWALL: RECOMMENDED",
+                    description = "Model $model flagged $appId at risk $risk. ${rule.optString("reason")}",
+                    severity = if (risk >= 90) "CRITICAL" else "WARNING",
+                    sourceApp = appId
+                ))
+                triggerHapticFeedback(VibrationEffect.EFFECT_TICK)
+            }
+        }
+    }
+
+    private suspend fun applyLocalTelemetryHeuristic(analytics: JSONObject, prefs: android.content.SharedPreferences) {
+        val usage = analytics.optJSONObject("usage") ?: return
+        val autoIsolate = prefs.getBoolean("ai_auto_isolate", true)
+        val riskThreshold = prefs.getInt("ai_risk_threshold", 85)
+        usage.keys().forEach { appId ->
+            val appData = usage.getJSONObject(appId)
+            val estimatedRisk = if (appData.getLong("p") > 100000) 90 else 80
+            if (appData.getLong("p") > 50000 && estimatedRisk >= riskThreshold && !appId.startsWith("com.android")) {
+                if (autoIsolate) RustBridge.setAppRule(appId, 2)
+                database.netHealDao().insertIncident(Incident(title = if (autoIsolate) "AUTO FIREWALL: ISOLATED" else "AUTO FIREWALL: RECOMMENDED", description = "App $appId flagged for background exfiltration risk $estimatedRisk.", severity = "WARNING", sourceApp = appId))
+                triggerHapticFeedback(VibrationEffect.EFFECT_TICK)
+            }
+        }
+    }
+
+    private fun buildAiTelemetry(analytics: JSONObject, redactTelemetry: Boolean): JSONObject {
+        if (!redactTelemetry) return analytics
+
+        val redacted = JSONObject()
+        val usage = analytics.optJSONObject("usage") ?: return analytics
+        val safeUsage = JSONObject()
+        usage.keys().forEach { appId ->
+            val appData = usage.getJSONObject(appId)
+            val label = "app_" + kotlin.math.abs(appId.hashCode()).toString(16)
+            safeUsage.put(label, JSONObject()
+                .put("sent", appData.optLong("p"))
+                .put("received", appData.optLong("r"))
+                .put("system", appId.startsWith("com.android")))
+        }
+        redacted.put("usage", safeUsage)
+        redacted.put("redacted", true)
+        redacted.put("scanned", RustBridge.getScannedCount())
+        redacted.put("blocked", RustBridge.getBlockedCount())
+        return redacted
+    }
+
+    private fun extractJsonObject(content: String): String {
+        val trimmed = content.trim()
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed
+        val start = trimmed.indexOf('{')
+        val end = trimmed.lastIndexOf('}')
+        if (start >= 0 && end > start) return trimmed.substring(start, end + 1)
+        return "{}"
     }
 
     private suspend fun generateIncidentTimeline() {
@@ -226,23 +368,51 @@ class NetHealApp : Application(), SensorEventListener {
         val batteryStatus: android.content.Intent? = IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED).let { registerReceiver(null, it) }
         val level: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val batteryPct = level * 100 / scale.toFloat()
-        if (batteryPct < 5 && prefs.getBoolean("battery_safeguard", true)) {
-            RustBridge.setSecurityLevel(0)
+        if (level < 0 || scale <= 0) return
+
+        val batteryPct = (level * 100f) / scale
+        val threshold = prefs.getInt("low_battery_threshold", 15)
+        val staminaActive = prefs.getBoolean("stamina_mode_active", false)
+        if (batteryPct <= threshold && prefs.getBoolean("battery_safeguard", true)) {
+            RustBridge.setBatterySafeguard(true)
+            RustBridge.setPerformanceMode(true)
             RustBridge.setBoosterActive(false)
+            RustBridge.setMultipathActive(false)
+            prefs.edit().putBoolean("stamina_mode_active", true).apply()
+            if (!staminaActive) {
+                Log.i("NetHeal", "Battery Intelligence: Stamina Mode active at ${batteryPct.toInt()}%.")
+            }
+        } else if (staminaActive && batteryPct > threshold + 5) {
+            prefs.edit().putBoolean("stamina_mode_active", false).apply()
+            RustBridge.setPerformanceMode(prefs.getBoolean("performance_mode", false))
+            RustBridge.setBoosterActive(prefs.getBoolean("booster_active", false))
+            RustBridge.setMultipathActive(prefs.getBoolean("multipath_active", false))
+            Log.i("NetHeal", "Battery Intelligence: Stamina Mode released at ${batteryPct.toInt()}%.")
         }
     }
 
     private fun updateNetworkPosture() {
         if (isMotionShieldActive) return
+        val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
+        if (!prefs.getBoolean("posture_awareness", true)) return
+
         val wifi = getSystemService(Context.WIFI_SERVICE) as WifiManager
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val actNw = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
         val isCaptive = actNw?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) ?: false
         @Suppress("DEPRECATION")
         val ssid = wifi.connectionInfo.ssid?.replace("\"", "") ?: "Cellular"
-        if (isCaptive) { RustBridge.setSecurityLevel(0) }
-        else if (ssid != "Cellular" && (ssid.contains("Public") || ssid.contains("Guest"))) { RustBridge.setSecurityLevel(3) }
+        val trustedSsids = prefs.getString("trusted_ssids", "")
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+
+        when {
+            isCaptive -> RustBridge.setSecurityLevel(4)
+            ssid != "Cellular" && trustedSsids.any { it.equals(ssid, ignoreCase = true) } -> RustBridge.setSecurityLevel(1)
+            ssid != "Cellular" && (ssid.contains("Public", true) || ssid.contains("Guest", true) || ssid.contains("Free", true)) -> RustBridge.setSecurityLevel(3)
+        }
     }
 
     private suspend fun runScheduledTasks() {
@@ -265,11 +435,17 @@ class NetHealApp : Application(), SensorEventListener {
         database.netHealDao().getWhitelist().forEach { RustBridge.addWhitelist(it.domain, it.domain.contains(Regex("[a-zA-Z]"))) }
         database.netHealDao().getBlacklist().forEach { RustBridge.addBlacklist(it.target, it.target.contains(Regex("[a-zA-Z]"))) }
         val prefs = getSharedPreferences("netheal_prefs", MODE_PRIVATE)
-        RustBridge.setJulesActive(prefs.getBoolean("jules_api_active", false))
+        RustBridge.setAiActive(prefs.getBoolean("ai_enabled", false))
         RustBridge.setNeuralShield(prefs.getBoolean("neural_shield", false))
         RustBridge.setPerformanceMode(prefs.getBoolean("performance_mode", false))
         RustBridge.setBoosterActive(prefs.getBoolean("booster_active", false))
         RustBridge.setMultipathActive(prefs.getBoolean("multipath_active", false))
+        RustBridge.setObfuscation(prefs.getBoolean("obfuscation_active", false))
+        RustBridge.setBatterySafeguard(prefs.getBoolean("battery_safeguard", true))
+        RustBridge.setBufferSize(prefs.getInt("buffer_size", 32768))
+        RustBridge.setShapingMode(prefs.getInt("shaping_mode", 0))
+        RustBridge.setHoneypotMode(prefs.getBoolean("honeypot_active", false))
+        RustBridge.setFingerprintMask(prefs.getInt("fingerprint_type", 0))
     }
 
     private fun createNotificationChannel() {
