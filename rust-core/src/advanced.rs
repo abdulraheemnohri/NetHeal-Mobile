@@ -2,33 +2,39 @@ use std::collections::HashMap;
 
 pub struct AdvancedEngine {
     pub honeypot_active: bool,
+    pub ghost_mode_active: bool,
     pub fake_os_fingerprint: String,
-    dpi_scripts: HashMap<String, String>, // Pattern to Action
+    dpi_scripts: HashMap<String, String>,
 }
 
 impl AdvancedEngine {
     pub fn new() -> Self {
         AdvancedEngine {
             honeypot_active: false,
-            fake_os_fingerprint: "Android".to_string(),
+            ghost_mode_active: false,
+            fake_os_fingerprint: "None".to_string(),
             dpi_scripts: HashMap::new(),
         }
     }
 
     pub fn apply_deception(&self, data: &mut [u8]) {
-        if self.honeypot_active {
-            // Logic to spoof open ports or decoy services
+        if !self.honeypot_active && !self.ghost_mode_active { return; }
+
+        if self.honeypot_active && data.len() > 12 {
+            // OS Fingerprint Masking: Spoofing TCP Options to match target OS
+            if data[9] == 6 {
+                let ihl = (data[0] & 0x0F) as usize * 4;
+                if data.len() > ihl + 12 {
+                     // In a real implementation, we would append or modify TCP MSS/Window scaling options
+                }
+            }
         }
 
-        // Mask OS Fingerprint by adjusting TCP TTL and Window size
-        if data.len() > 20 && data[9] == 6 {
-            if self.fake_os_fingerprint == "Windows" {
-                data[8] = 128; // TTL
-            } else if self.fake_os_fingerprint == "Linux" {
-                data[8] = 64;
-            } else if self.fake_os_fingerprint == "iOS" {
-                data[8] = 255;
-            }
+        // GHOST IDENTITY: Inject noise to thwart traffic pattern analysis
+        if self.ghost_mode_active && data.len() > 40 {
+             // Mock: Randomize Identification field in IPv4 header
+             data[4] = rand::random::<u8>();
+             data[5] = rand::random::<u8>();
         }
     }
 

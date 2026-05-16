@@ -35,13 +35,14 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
     var securityScore by remember { mutableIntStateOf(85) }
     var blockedCount by remember { mutableLongStateOf(0L) }
     var scannedCount by remember { mutableLongStateOf(0L) }
+    var isUnlocked by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("netheal_prefs", android.content.Context.MODE_PRIVATE)
 
     val isStealthActive = prefs.getBoolean("stealth_active", false)
     val isBoosterActive = prefs.getBoolean("booster_active", false)
 
-    LaunchedEffect(Unit) {
+     LaunchedEffect(Unit) {
         while (true) {
             try {
                 blockedCount = RustBridge.getBlockedCount()
@@ -68,45 +69,53 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
             Header()
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 3D Global Threat Core
+            // Neural Synapse Core
             Box(
                 modifier = Modifier.fillMaxWidth().height(240.dp),
                 contentAlignment = Alignment.Center
             ) {
-                GlobalThreatCore(isShieldActive)
+                NeuralSynapseCore(isShieldActive, scannedCount)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = {
-                            isShieldActive = !isShieldActive
-                            if (isShieldActive) RustBridge.startEngine() else RustBridge.stopEngine()
-                            onToggleShield(isShieldActive)
+                            if (isUnlocked) {
+                                isShieldActive = !isShieldActive
+                                if (isShieldActive) RustBridge.startEngine() else RustBridge.stopEngine()
+                                onToggleShield(isShieldActive)
+                            }
                         },
-                        modifier = Modifier.size(120.dp)
+                        modifier = Modifier.size(120.dp),
+                        enabled = isUnlocked
                     ) {
                         Icon(
                             if (isShieldActive) Icons.Default.Shield else Icons.Default.ShieldMoon,
                             contentDescription = null,
                             modifier = Modifier.size(80.dp),
-                            tint = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger
+                            tint = if (!isUnlocked) Color.Gray else (if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger)
                         )
                     }
                     Text(
-                        if (isShieldActive) "CORE PROTECTION: ACTIVE" else "CORE PROTECTION: OFFLINE",
-                        color = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger,
+                        if (!isUnlocked) "CORE LOCKED" else (if (isShieldActive) "NEURAL STATE: DEFENDING" else "NEURAL STATE: DORMANT"),
+                        color = if (!isUnlocked) Color.Gray else (if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
+                        letterSpacing = 2.sp
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            if (!isUnlocked) {
+                BiometricPulseLock { isUnlocked = true }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+
             // Tactical Metrics
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatCard("TRAFFIC", scannedCount.toString(), Icons.Default.Radar, CyberTheme.Secondary)
-                StatCard("THREATS", blockedCount.toString(), Icons.Default.Security, CyberTheme.Danger)
-                StatCard("INTEGRITY", "${securityScore}%", Icons.Default.Favorite, CyberTheme.Primary)
+                StatCard("THROUGHPUT", scannedCount.toString(), Icons.Default.Radar, CyberTheme.Secondary)
+                StatCard("DROPPED", blockedCount.toString(), Icons.Default.Security, CyberTheme.Danger)
+                StatCard("STABILITY", "${securityScore}%", Icons.Default.Favorite, CyberTheme.Primary)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -121,6 +130,88 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
 }
 
 @Composable
+fun BiometricPulseLock(onUnlock: () -> Unit) {
+    var isScanning by remember { mutableStateOf(false) }
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scanY by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 100f,
+        animationSpec = infiniteRepeatable(animation = tween(1500), repeatMode = RepeatMode.Reverse),
+        label = "scan"
+    )
+
+    HoloCard {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Text("BIOMETRIC PULSE-LOCK", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, CyberTheme.Primary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .clickable {
+                        isScanning = true
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Fingerprint, null, tint = if (isScanning) CyberTheme.Primary else Color.Gray, modifier = Modifier.size(40.dp))
+                if (isScanning) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawLine(
+                            CyberTheme.Primary,
+                            Offset(0f, (scanY / 100f) * size.height),
+                            Offset(size.width, (scanY / 100f) * size.height),
+                            strokeWidth = 2f
+                        )
+                    }
+                    LaunchedEffect(Unit) {
+                        delay(2000)
+                        onUnlock()
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(if (isScanning) "SCANNING..." else "HOLD TO AUTHORIZE", color = if (isScanning) CyberTheme.Primary else Color.Gray, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+fun NeuralSynapseCore(active: Boolean, packetCount: Long) {
+    val infiniteTransition = rememberInfiniteTransition(label = "synapse")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(20000, easing = LinearEasing)),
+        label = "core_rotate"
+    )
+    val corePulse by infiniteTransition.animateFloat(
+        initialValue = 0.95f, targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(animation = tween(2000), repeatMode = RepeatMode.Reverse),
+        label = "pulse"
+    )
+
+    val synapseAlpha by animateFloatAsState(
+        targetValue = if (active) 1.0f else 0.2f,
+        animationSpec = tween(1000), label = "alpha"
+    )
+
+    Canvas(modifier = Modifier.size(260.dp).rotate(rotation)) {
+        val color = if (active) CyberTheme.Primary else CyberTheme.Danger
+        val radius = (size.minDimension / 2.2f) * corePulse
+        val nodeCount = 12
+        for (i in 0 until nodeCount) {
+            val angle = Math.toRadians((360.0 / nodeCount) * i)
+            val x = center.x + radius * Math.cos(angle).toFloat()
+            val y = center.y + radius * Math.sin(angle).toFloat()
+            val firingAlpha = if (active && (packetCount % nodeCount) == i.toLong()) 0.8f else 0.1f
+            drawCircle(color, 6f, Offset(x, y), alpha = synapseAlpha * (0.2f + firingAlpha))
+            drawLine(color = color.copy(alpha = synapseAlpha * 0.15f), start = center, end = Offset(x, y), strokeWidth = 1f)
+        }
+        drawCircle(color = color, radius = radius * 0.4f, style = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 20f), 0f)), alpha = synapseAlpha * 0.6f)
+    }
+}
+
+@Composable
 fun NeuroLinkInterface() {
     var isListening by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "neurolink")
@@ -129,18 +220,11 @@ fun NeuroLinkInterface() {
         animationSpec = infiniteRepeatable(animation = tween(1000), repeatMode = RepeatMode.Reverse),
         label = "wave"
     )
-
     GlassCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(50.dp), contentAlignment = Alignment.Center) {
-                if (isListening) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(CyberTheme.Secondary.copy(alpha = 0.2f), radius = size.minDimension / 2 * waveScale)
-                    }
-                }
-                IconButton(onClick = { isListening = !isListening }) {
-                    Icon(if (isListening) Icons.Default.Mic else Icons.Default.MicNone, null, tint = if (isListening) CyberTheme.Secondary else Color.Gray)
-                }
+                if (isListening) { Canvas(modifier = Modifier.fillMaxSize()) { drawCircle(CyberTheme.Secondary.copy(alpha = 0.2f), radius = size.minDimension / 2 * waveScale) } }
+                IconButton(onClick = { isListening = !isListening }) { Icon(if (isListening) Icons.Default.Mic else Icons.Default.MicNone, null, tint = if (isListening) CyberTheme.Secondary else Color.Gray) }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
@@ -148,46 +232,6 @@ fun NeuroLinkInterface() {
                 Text(if (isListening) "Listening for voice commands..." else "Tap to engage voice-link simulation", color = Color.Gray, fontSize = 10.sp)
             }
         }
-    }
-}
-
-@Composable
-fun GlobalThreatCore(active: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "core")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(15000, easing = LinearEasing)),
-        label = "core_rotate"
-    )
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.9f, targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(animation = tween(3000), repeatMode = RepeatMode.Reverse),
-        label = "core_scale"
-    )
-
-    Canvas(modifier = Modifier.size(240.dp).rotate(rotation)) {
-        val color = if (active) CyberTheme.Primary else CyberTheme.Danger
-        drawCircle(
-            color = color.copy(alpha = 0.05f),
-            radius = (size.minDimension / 2) * scale
-        )
-        drawCircle(
-            color = color,
-            radius = (size.minDimension / 2) * scale,
-            style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 15f), 0f))
-        )
-        drawOval(
-            color = color.copy(alpha = 0.3f),
-            topLeft = center.copy(x = center.x - 100f * scale, y = center.y - 40f * scale),
-            size = androidx.compose.ui.geometry.Size(200f * scale, 80f * scale),
-            style = Stroke(width = 2f)
-        )
-        drawOval(
-            color = CyberTheme.Secondary.copy(alpha = 0.2f),
-            topLeft = center.copy(x = center.x - 40f * scale, y = center.y - 100f * scale),
-            size = androidx.compose.ui.geometry.Size(80f * scale, 200f * scale),
-            style = Stroke(width = 2f)
-        )
     }
 }
 
@@ -200,13 +244,7 @@ fun QuantumOverlay() {
         label = "quantum_alpha"
     )
     Canvas(modifier = Modifier.fillMaxSize()) {
-        drawRect(
-            brush = Brush.radialGradient(
-                colors = listOf(CyberTheme.Secondary.copy(alpha = alpha), Color.Transparent),
-                center = center,
-                radius = size.maxDimension / 1.5f
-            )
-        )
+        drawRect(brush = Brush.radialGradient(colors = listOf(CyberTheme.Secondary.copy(alpha = alpha), Color.Transparent), center = center, radius = size.maxDimension / 1.5f))
     }
 }
 
@@ -214,60 +252,29 @@ fun QuantumOverlay() {
 fun NeuralTerminal() {
     val logs = remember { mutableStateListOf<String>() }
     var commandInput by remember { mutableStateOf("") }
-
     LaunchedEffect(Unit) {
-        val events = listOf(
-            "KERNEL :: Thread isolation priority set to HIGH",
-            "AI :: Analyzing suspicious TCP stream from PID 4201",
-            "SHIELD :: Entropy threshold adjusted for deep packet inspection",
-            "BOOSTER :: Link bonding optimized (WIFI + SIM-1)",
-            "DPI :: Malicious signature detected - Action: DROPPED",
-            "SYSTEM :: Omega engine health status nominal"
-        )
+        val events = listOf("KERNEL :: Thread isolation priority set to HIGH", "AI :: Analyzing suspicious TCP stream from PID 4201", "SHIELD :: Entropy threshold adjusted for deep packet inspection", "BOOSTER :: Link bonding optimized (WIFI + SIM-1)", "DPI :: Malicious signature detected - Action: DROPPED", "SYSTEM :: Omega engine health status nominal")
         while (true) {
             logs.add(0, "> ${events.random()}")
             if (logs.size > 15) logs.removeLast()
             delay(4000)
         }
     }
-
     Column {
         Text("NEURAL COMMAND TERMINAL", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(12.dp))
-        GlassCard(modifier = Modifier.height(200.dp)) {
+        HoloCard(modifier = Modifier.height(200.dp)) {
             Box(modifier = Modifier.weight(1f)) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(logs) { log ->
-                        Text(
-                            log,
-                            color = CyberTheme.Primary.copy(alpha = 0.9f),
-                            fontSize = 10.sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
+                    items(logs) { log -> Text(log, color = CyberTheme.Primary.copy(alpha = 0.9f), fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.padding(vertical = 2.dp)) }
                 }
             }
             Divider(color = CyberTheme.Border, modifier = Modifier.padding(vertical = 8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("user@netheal:~$", color = CyberTheme.Secondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.width(8.dp))
-                BasicTextField(
-                    value = commandInput,
-                    onValueChange = { commandInput = it },
-                    modifier = Modifier.weight(1f),
-                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                    cursorBrush = Brush.verticalGradient(listOf(CyberTheme.Primary, CyberTheme.Primary))
-                )
-                IconButton(onClick = {
-                    if (commandInput.isNotBlank()) {
-                        logs.add(0, "$ ${commandInput}")
-                        if (commandInput == "/flush") RustBridge.clearLogs()
-                        commandInput = ""
-                    }
-                }, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.KeyboardArrowRight, null, tint = CyberTheme.Primary)
-                }
+                BasicTextField(value = commandInput, onValueChange = { commandInput = it }, modifier = Modifier.weight(1f), textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), cursorBrush = Brush.verticalGradient(listOf(CyberTheme.Primary, CyberTheme.Primary)))
+                IconButton(onClick = { if (commandInput.isNotBlank()) { logs.add(0, "$ ${commandInput}"); if (commandInput == "/flush") RustBridge.clearLogs(); commandInput = "" } }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.KeyboardArrowRight, null, tint = CyberTheme.Primary) }
             }
         }
     }
@@ -275,11 +282,9 @@ fun NeuralTerminal() {
 
 @Composable
 fun AdvisorySection() {
-    GlassCard {
+    HoloCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(CyberTheme.Primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Info, null, tint = CyberTheme.Primary, modifier = Modifier.size(20.dp))
-            }
+            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(CyberTheme.Primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(Icons.Default.Info, null, tint = CyberTheme.Primary, modifier = Modifier.size(20.dp)) }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
                 Text("AI SECURITY ADVISORY", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -297,11 +302,7 @@ fun StatCard(label: String, value: String, icon: ImageVector, color: Color) {
         border = BorderStroke(1.dp, CyberTheme.Border),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, null, tint = color.copy(alpha = 0.8f), modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.height(8.dp))
             Text(value, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)

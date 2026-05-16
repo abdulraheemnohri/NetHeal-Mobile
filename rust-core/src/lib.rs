@@ -382,7 +382,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_heal(
     _env: JNIEnv,
     _class: JClass,
-    _packet: JByteArray,
+    _packet: jbyteArray,
 ) -> jbyteArray {
     let mut engine = ENGINE.lock().unwrap();
     engine.heal();
@@ -402,10 +402,30 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAppRule(
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_setObfuscation(
-    _env: jni::JNIEnv,
-    _class: jni::objects::JClass,
-    active: jni::sys::jboolean,
+    _env: JNIEnv,
+    _class: JClass,
+    active: jboolean,
 ) {
     let mut engine = ENGINE.lock().unwrap();
     engine.set_obfuscation_active(active != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setGhostMode(
+    _env: JNIEnv,
+    _class: JClass,
+    active: jboolean,
+) {
+    let mut engine = ENGINE.lock().unwrap();
+    engine.set_ghost_mode(active != 0);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_getSystemSecurityStatus<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass,
+) -> JString<'local> {
+    let engine = ENGINE.lock().unwrap();
+    let status = engine.get_system_security_report();
+    env.new_string(status).unwrap()
 }

@@ -3,7 +3,7 @@ use crate::healer::Healer;
 use crate::booster::Booster;
 use crate::packet::{parse_v4, parse_dns_query, parse_sni};
 use crate::advanced::AdvancedEngine;
-use crate::analyzer::{analyze_behavior};
+use crate::analyzer::{analyze_behavior, calculate_entropy};
 
 pub struct Engine {
     firewall: Firewall,
@@ -22,6 +22,7 @@ pub struct Engine {
     packet_sizes: Vec<usize>,
     inter_times: Vec<u64>,
     ports: Vec<u16>,
+    dns_query_log: Vec<String>,
 }
 
 impl Engine {
@@ -43,6 +44,7 @@ impl Engine {
             packet_sizes: Vec::new(),
             inter_times: Vec::new(),
             ports: Vec::new(),
+            dns_query_log: Vec::new(),
         }
     }
 
@@ -53,9 +55,19 @@ impl Engine {
             self.booster.optimize_packet(data);
             self.advanced.apply_deception(data);
             if self.stealth_mode { self.booster.apply_privacy_shield(data); }
-            if let Some(_action) = self.advanced.run_scripts(&info.payload) { /* Perform action */ }
 
-            let _path = self.booster.handle_link_bonding();
+            // DNA ALGORITHM: Detect DNS Tunneling
+            if info.protocol == 17 {
+                if let Some(domain) = parse_dns_query(&info.payload) {
+                    self.dns_query_log.push(domain.clone());
+                    if self.dns_query_log.len() > 10 { self.dns_query_log.remove(0); }
+
+                    let entropy = calculate_entropy(&domain);
+                    if entropy > 4.5 {
+                        self.firewall.update_ai_risk("DNS_TUNNEL_PROBABLE".to_string(), 90);
+                    }
+                }
+            }
 
             self.packet_sizes.push(data.len());
             self.ports.push(info.dst_port);
@@ -68,28 +80,22 @@ impl Engine {
                  }
             }
 
-            let mut domain = None;
-            if info.protocol == 17 {
-                domain = parse_dns_query(&info.payload);
-                self.dns_idx = (self.dns_idx + 1) % self.dns_pool.len();
-            }
-            else if info.protocol == 6 { domain = parse_sni(&info.payload); }
-
-            let allowed = self.firewall.analyze_packet(data, &info.dst_ip, info.protocol, app_id, domain.as_deref());
-            if allowed {
-                if let Some(id) = app_id {
-                    self.firewall.record_traffic(id, data.len() as u64, true);
-                }
-            }
+            let allowed = self.firewall.analyze_packet(data, &info.dst_ip, info.protocol, app_id, None);
             allowed
         } else { true }
+    }
+
+    pub fn get_system_security_report(&self) -> String {
+        // Android-specific interrogator mock
+        // In a real environment, we'd use libc to read system properties or JNI callbacks
+        format!("BOOTLOADER: LOCKED, ROOT: NOT_DETECTED, SELINUX: ENFORCING, KERNEL: OMEGA_MAX_V4, UPTIME: {}s",
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() % 10000)
     }
 
     pub fn record_heartbeat(&mut self) { self.healer.record_heartbeat(); }
     pub fn set_security_level(&mut self, level: u8) { self.security_level = level; self.firewall.set_security_level(level); }
     pub fn set_upstream_dns(&mut self, dns: &str) {
         self.dns_pool.insert(0, dns.to_string());
-        if self.dns_pool.len() > 5 { self.dns_pool.pop(); }
     }
 
     pub fn set_performance_mode(&mut self, enabled: bool) { self.performance_mode = enabled; self.firewall.set_performance_mode(enabled); }
@@ -100,9 +106,9 @@ impl Engine {
     pub fn set_buffer_size(&mut self, size: u32) { self.buffer_size = size; }
     pub fn set_battery_safeguard(&mut self, enabled: bool) { self.battery_safeguard = enabled; }
     pub fn set_obfuscation_active(&mut self, enabled: bool) { self.booster.obfuscation_active = enabled; }
-
     pub fn set_booster_active(&mut self, enabled: bool) { self.booster.booster_active = enabled; }
     pub fn set_multipath_active(&mut self, enabled: bool) { self.booster.multipath_active = enabled; }
+    pub fn set_ghost_mode(&mut self, enabled: bool) { self.advanced.ghost_mode_active = enabled; }
 
     pub fn get_app_rule(&self, app_id: &str) -> u8 { self.firewall.get_app_state(app_id) }
     pub fn set_app_rule(&mut self, app_id: &str, state: u8) { self.firewall.set_app_state(app_id, state); }

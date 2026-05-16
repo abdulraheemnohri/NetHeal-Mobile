@@ -99,8 +99,88 @@ fun FirewallScreen() {
 }
 
 @Composable
+fun IncidentsSection() {
+    var incidents by remember { mutableStateOf(listOf<Incident>()) }
+    var scrubTime by remember { mutableFloatStateOf(1f) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            incidents = NetHealApp.database.netHealDao().getAllIncidents()
+            delay(5000)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("FORENSIC TIMELINE", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteAllIncidents() } }) {
+                Icon(Icons.Default.DeleteSweep, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        GlassCard {
+            Text("TIME SCRUBBER: HISTORICAL REPLAY", color = Color.Gray, fontSize = 9.sp)
+            Slider(
+                value = scrubTime, onValueChange = { scrubTime = it },
+                colors = SliderDefaults.colors(thumbColor = CyberTheme.Secondary, activeTrackColor = CyberTheme.Secondary)
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val filteredIncidents = if (incidents.isNotEmpty()) {
+            val totalCount = incidents.size
+            val showCount = (totalCount * scrubTime).toInt().coerceAtLeast(1)
+            incidents.take(showCount)
+        } else incidents
+
+        if (incidents.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("NO FORENSIC DATA", color = Color.DarkGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(filteredIncidents) { incident ->
+                    IncidentItem(incident)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun IncidentItem(incident: Incident) {
+    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val time = sdf.format(Date(incident.timestamp))
+    val color = when(incident.severity) {
+        "CRITICAL" -> CyberTheme.Danger
+        "WARNING" -> CyberTheme.Warning
+        else -> CyberTheme.Primary
+    }
+
+    GlassCard {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(color).align(Alignment.CenterVertically))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(incident.title, color = color, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                    Text(time, color = Color.Gray, fontSize = 10.sp)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(incident.description, color = Color.LightGray, fontSize = 11.sp)
+                if (incident.sourceApp != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("SOURCE: ${incident.sourceApp}", color = CyberTheme.Secondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SimulationSandboxSection() {
-    val context = LocalContext.current
     var isSimulating by remember { mutableStateOf(false) }
     var lastSimResult by remember { mutableStateOf("Ready for payload execution.") }
     val scope = rememberCoroutineScope()
@@ -165,71 +245,6 @@ fun SimTrigger(name: String, desc: String, onClick: () -> Unit) {
             Column {
                 Text(name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text(desc, color = Color.Gray, fontSize = 10.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun IncidentsSection() {
-    var incidents by remember { mutableStateOf(listOf<Incident>()) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            incidents = NetHealApp.database.netHealDao().getAllIncidents()
-            delay(5000)
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("INCIDENT TIMELINE", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            IconButton(onClick = { scope.launch(Dispatchers.IO) { NetHealApp.database.netHealDao().deleteAllIncidents() } }) {
-                Icon(Icons.Default.DeleteSweep, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (incidents.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("NO INCIDENTS DETECTED", color = Color.DarkGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(incidents) { incident ->
-                    IncidentItem(incident)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun IncidentItem(incident: Incident) {
-    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-    val time = sdf.format(Date(incident.timestamp))
-    val color = when(incident.severity) {
-        "CRITICAL" -> CyberTheme.Danger
-        "WARNING" -> CyberTheme.Warning
-        else -> CyberTheme.Primary
-    }
-
-    GlassCard {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(color).align(Alignment.CenterVertically))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(incident.title, color = color, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
-                    Text(time, color = Color.Gray, fontSize = 10.sp)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(incident.description, color = Color.LightGray, fontSize = 11.sp)
-                if (incident.sourceApp != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("SOURCE: ${incident.sourceApp}", color = CyberTheme.Secondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
             }
         }
     }
