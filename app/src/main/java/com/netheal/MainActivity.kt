@@ -5,7 +5,7 @@ import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,51 +22,60 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val navController = rememberNavController()
-            Scaffold(
-                bottomBar = {
-                    NavigationBar(containerColor = Color(0xFF0D1117)) {
-                        val navBackStackEntry by navController.currentBackStackEntryAsState()
-                        val currentRoute = navBackStackEntry?.destination?.route
+            Box(modifier = Modifier.fillMaxSize()) {
+                CyberBackground()
+                Scaffold(
+                    containerColor = Color.Transparent,
+                    bottomBar = {
+                        NavigationBar(containerColor = CyberTheme.Surface) {
+                            val navBackStackEntry by navController.currentBackStackEntryAsState()
+                            val currentRoute = navBackStackEntry?.destination?.route
 
-                        NavigationBarItem(
-                            icon = { Icon(Icons.Default.Dashboard, null) },
-                            label = { Text("CORE") },
-                            selected = currentRoute == "dashboard",
-                            onClick = { navController.navigate("dashboard") }
-                        )
-                        NavigationBarItem(
-                            icon = { Icon(Icons.Default.Security, null) },
-                            label = { Text("ARSENAL") },
-                            selected = currentRoute == "firewall",
-                            onClick = { navController.navigate("firewall") }
-                        )
-                        NavigationBarItem(
-                            icon = { Icon(Icons.Default.VerifiedUser, null) },
-                            label = { Text("AUDIT") },
-                            selected = currentRoute == "audit",
-                            onClick = { navController.navigate("audit") }
-                        )
-                        NavigationBarItem(
-                            icon = { Icon(Icons.Default.Radar, null) },
-                            label = { Text("TACTICAL") },
-                            selected = currentRoute == "tactical",
-                            onClick = { navController.navigate("tactical") }
-                        )
-                        NavigationBarItem(
-                            icon = { Icon(Icons.Default.Settings, null) },
-                            label = { Text("CONFIG") },
-                            selected = currentRoute == "settings",
-                            onClick = { navController.navigate("settings") }
-                        )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Dashboard, null) },
+                                label = { Text("CORE") },
+                                selected = currentRoute == "dashboard",
+                                onClick = { navController.navigate("dashboard") },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Security, null) },
+                                label = { Text("ARSENAL") },
+                                selected = currentRoute == "firewall",
+                                onClick = { navController.navigate("firewall") },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.VerifiedUser, null) },
+                                label = { Text("AUDIT") },
+                                selected = currentRoute == "audit",
+                                onClick = { navController.navigate("audit") },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Radar, null) },
+                                label = { Text("TACTICAL") },
+                                selected = currentRoute == "tactical",
+                                onClick = { navController.navigate("tactical") },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Settings, null) },
+                                label = { Text("CONFIG") },
+                                selected = currentRoute == "settings",
+                                onClick = { navController.navigate("settings") },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = CyberTheme.Primary, unselectedIconColor = Color.Gray, indicatorColor = Color.Transparent)
+                            )
+                        }
                     }
-                }
-            ) { padding ->
-                NavHost(navController, startDestination = "dashboard", modifier = Modifier.padding(padding)) {
-                    composable("dashboard") { Dashboard { enabled -> toggleVpn(enabled) } }
-                    composable("firewall") { FirewallScreen() }
-                    composable("audit") { SecurityAuditSection() }
-                    composable("tactical") { TacticalCommandDeck() }
-                    composable("settings") { SettingsScreen() }
+                ) { padding ->
+                    NavHost(navController, startDestination = "dashboard", modifier = Modifier.padding(padding)) {
+                        composable("dashboard") { Dashboard { enabled -> toggleVpn(enabled) } }
+                        composable("firewall") { FirewallScreen() }
+                        composable("audit") { SecurityAuditSection() }
+                        composable("tactical") { TacticalCommandDeck() }
+                        composable("settings") { SettingsScreen() }
+                    }
                 }
             }
         }
@@ -75,13 +84,16 @@ class MainActivity : ComponentActivity() {
     private fun toggleVpn(enabled: Boolean) {
         val intent = VpnService.prepare(this)
         if (intent != null) {
+            @Suppress("DEPRECATION")
             startActivityForResult(intent, 100)
         } else {
             onActivityResult(100, RESULT_OK, null)
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 100 && resultCode == RESULT_OK) {
             val intent = Intent(this, NetHealVpnService::class.java)

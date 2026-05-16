@@ -37,6 +37,11 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
     var securityScore by remember { mutableIntStateOf(85) }
     var blockedCount by remember { mutableLongStateOf(0L) }
     var scannedCount by remember { mutableLongStateOf(0L) }
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("netheal_prefs", android.content.Context.MODE_PRIVATE)
+
+    val isStealthActive = prefs.getBoolean("stealth_active", false)
+    val isBoosterActive = prefs.getBoolean("booster_active", false)
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -49,68 +54,96 @@ fun Dashboard(onToggleShield: (Boolean) -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CyberTheme.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
-        Header()
-        Spacer(modifier = Modifier.height(32.dp))
+    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
+        // Quantum Stealth Layer
+        if (isShieldActive && isStealthActive && isBoosterActive) {
+            QuantumOverlay()
+        }
 
-        // Advanced Master Shield
-        Box(
-            modifier = Modifier.fillMaxWidth().height(240.dp),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
         ) {
-            ShieldPulseEffect(isShieldActive)
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconButton(
-                    onClick = {
-                        isShieldActive = !isShieldActive
-                        if (isShieldActive) RustBridge.startEngine() else RustBridge.stopEngine()
-                        onToggleShield(isShieldActive)
-                    },
-                    modifier = Modifier.size(120.dp)
-                ) {
-                    Icon(
-                        if (isShieldActive) Icons.Default.Shield else Icons.Default.ShieldMoon,
-                        contentDescription = null,
-                        modifier = Modifier.size(80.dp),
-                        tint = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger
+            Header()
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Advanced Master Shield
+            Box(
+                modifier = Modifier.fillMaxWidth().height(240.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ShieldPulseEffect(isShieldActive)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(
+                        onClick = {
+                            isShieldActive = !isShieldActive
+                            if (isShieldActive) RustBridge.startEngine() else RustBridge.stopEngine()
+                            onToggleShield(isShieldActive)
+                        },
+                        modifier = Modifier.size(120.dp)
+                    ) {
+                        Icon(
+                            if (isShieldActive) Icons.Default.Shield else Icons.Default.ShieldMoon,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                            tint = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger
+                        )
+                    }
+                    Text(
+                        if (isShieldActive) "SYSTEM STATUS: SECURE" else "SYSTEM STATUS: VULNERABLE",
+                        color = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
                     )
+                    if (isStealthActive && isShieldActive) {
+                        Text("QUANTUM-SAFE STEALTH ENABLED", color = CyberTheme.Secondary, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                    }
                 }
-                Text(
-                    if (isShieldActive) "SYSTEM STATUS: SECURE" else "SYSTEM STATUS: VULNERABLE",
-                    color = if (isShieldActive) CyberTheme.Primary else CyberTheme.Danger,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                )
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Tactical Metrics
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatCard("TRAFFIC", scannedCount.toString(), Icons.Default.Radar, CyberTheme.Secondary)
+                StatCard("THREATS", blockedCount.toString(), Icons.Default.Security, CyberTheme.Danger)
+                StatCard("INTEGRITY", "${securityScore}%", Icons.Default.Favorite, CyberTheme.Primary)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Neural Terminal
+            NeuralTerminal()
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Advisory
+            AdvisorySection()
+
+            Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Tactical Metrics
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatCard("TRAFFIC", scannedCount.toString(), Icons.Default.Radar, CyberTheme.Secondary)
-            StatCard("THREATS", blockedCount.toString(), Icons.Default.Security, CyberTheme.Danger)
-            StatCard("INTEGRITY", "${securityScore}%", Icons.Default.Favorite, CyberTheme.Primary)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Neural Terminal (Modern Layout)
-        NeuralTerminal()
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Professional Advisory
-        AdvisorySection()
-
-        Spacer(modifier = Modifier.height(40.dp))
+@Composable
+fun QuantumOverlay() {
+    val infiniteTransition = rememberInfiniteTransition(label = "quantum")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.05f, targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(animation = tween(3000), repeatMode = RepeatMode.Reverse),
+        label = "quantum_alpha"
+    )
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(CyberTheme.Secondary.copy(alpha = alpha), Color.Transparent),
+                center = center,
+                radius = size.maxDimension / 1.5f
+            )
+        )
     }
 }
 

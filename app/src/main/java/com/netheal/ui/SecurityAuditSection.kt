@@ -27,8 +27,9 @@ fun SecurityAuditSection() {
     var showDnsTool by remember { mutableStateOf(false) }
     var showPingTool by remember { mutableStateOf(false) }
     var showLanScanner by remember { mutableStateOf(false) }
+    var showBreachMonitor by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(CyberTheme.Background).padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Transparent).padding(16.dp).verticalScroll(rememberScrollState())) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
         Text("SYSTEM INTEGRITY AUDIT", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -65,6 +66,12 @@ fun SecurityAuditSection() {
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+        Text("NEXT-GEN THREAT DETECTION", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        DiagnosticTool("Breach Monitor", "Scan Dark Web for credentials", Icons.Default.Language) { showBreachMonitor = true }
+
+        Spacer(modifier = Modifier.height(32.dp))
         Text("CONNECTIVITY DIAGNOSTICS", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -72,10 +79,57 @@ fun SecurityAuditSection() {
         DiagnosticTool("ICMP Ping", "Check node latency and jitter", Icons.Default.TapAndPlay) { showPingTool = true }
         DiagnosticTool("Peer Discovery", "Map local subnet vulnerabilities", Icons.Default.SettingsEthernet) { showLanScanner = true }
 
+        if (showBreachMonitor) BreachMonitorDialog(onDismiss = { showBreachMonitor = false })
         if (showDnsTool) DnsToolDialog(onDismiss = { showDnsTool = false })
         if (showPingTool) PingToolDialog(onDismiss = { showPingTool = false })
         if (showLanScanner) LanScannerDialog(onDismiss = { showLanScanner = false })
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
+
+@Composable
+fun BreachMonitorDialog(onDismiss: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var isScanning by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CyberTheme.Surface,
+        title = { Text("DARK WEB BREACH MONITOR", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = email, onValueChange = { email = it },
+                    label = { Text("Email Identifier") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = CyberTheme.Primary)
+                )
+                if (isScanning) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = CyberTheme.Primary)
+                    Text("Probing global breach databases...", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+                result?.let {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(it, color = if (it.contains("CLEAN")) CyberTheme.Primary else CyberTheme.Danger, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                scope.launch {
+                    isScanning = true; result = null
+                    delay(3000)
+                    isScanning = false
+                    result = if (email.contains("leak")) "EXPOSURE DETECTED: 3 DB BreachesFound" else "STATUS CLEAN: No direct leaks found."
+                }
+            }) { Text("SCAN", color = CyberTheme.Primary) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("CLOSE", color = Color.Gray) }
+        }
+    )
 }

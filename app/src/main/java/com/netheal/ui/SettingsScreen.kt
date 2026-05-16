@@ -33,7 +33,7 @@ fun SettingsScreen() {
     var honeypotActive by remember { mutableStateOf(prefs.getBoolean("honeypot_active", false)) }
     var fingerprintType by remember { mutableIntStateOf(prefs.getInt("fingerprint_type", 0)) }
 
-    Column(modifier = Modifier.fillMaxSize().background(CyberTheme.Background).verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Transparent).verticalScroll(rememberScrollState()).padding(16.dp)) {
         Header()
         Spacer(modifier = Modifier.height(24.dp))
         Text("SYSTEM CONFIGURATION", color = CyberTheme.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
