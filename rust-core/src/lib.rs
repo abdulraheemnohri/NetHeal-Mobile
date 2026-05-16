@@ -1,17 +1,17 @@
-use jni::JNIEnv;
-use jni::objects::{JClass, JString, JByteArray};
-use jni::sys::{jint, jlong, jboolean, jbyteArray};
-use std::sync::Mutex;
-use once_cell::sync::Lazy;
 use crate::engine::Engine;
+use jni::objects::{JByteArray, JClass, JString};
+use jni::sys::{jboolean, jbyteArray, jint, jlong};
+use jni::JNIEnv;
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
+mod advanced;
+mod analyzer;
+mod booster;
+mod engine;
 mod firewall;
 mod healer;
-mod booster;
 mod packet;
-mod advanced;
-mod engine;
-mod analyzer;
 
 static ENGINE: Lazy<Mutex<Engine>> = Lazy::new(|| Mutex::new(Engine::new()));
 
@@ -24,10 +24,8 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_startEngine(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_netheal_bridge_RustBridge_stopEngine(
-    _env: JNIEnv,
-    _class: JClass,
-) {}
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_stopEngine(_env: JNIEnv, _class: JClass) {
+}
 
 #[no_mangle]
 pub extern "system" fn Java_com_netheal_bridge_RustBridge_getStats<'local>(
@@ -35,7 +33,11 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getStats<'local>(
     _class: JClass,
 ) -> JString<'local> {
     let engine = ENGINE.lock().unwrap();
-    let stats = format!("Scanned: {}, Blocked: {}", engine.get_scanned_count(), engine.get_blocked_count());
+    let stats = format!(
+        "Scanned: {}, Blocked: {}",
+        engine.get_scanned_count(),
+        engine.get_blocked_count()
+    );
     env.new_string(stats).unwrap()
 }
 
@@ -56,7 +58,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setAppRule(
     app_id: JString,
     rule: jint,
 ) {
-    let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
+    let app_id_str: String = env
+        .get_string(&app_id)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.set_app_rule(&app_id_str, rule as u8);
 }
@@ -68,7 +73,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_addWhitelist(
     target: JString,
     is_domain: jboolean,
 ) {
-    let target_str: String = env.get_string(&target).expect("Couldn't get java string!").into();
+    let target_str: String = env
+        .get_string(&target)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.add_whitelist(&target_str, is_domain != 0);
 }
@@ -80,7 +88,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeWhitelist(
     target: JString,
     is_domain: jboolean,
 ) {
-    let target_str: String = env.get_string(&target).expect("Couldn't get java string!").into();
+    let target_str: String = env
+        .get_string(&target)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.remove_whitelist(&target_str, is_domain != 0);
 }
@@ -92,7 +103,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_addBlacklist(
     target: JString,
     is_domain: jboolean,
 ) {
-    let target_str: String = env.get_string(&target).expect("Couldn't get java string!").into();
+    let target_str: String = env
+        .get_string(&target)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.add_blacklist(&target_str, is_domain != 0);
 }
@@ -104,7 +118,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeBlacklist(
     target: JString,
     is_domain: jboolean,
 ) {
-    let target_str: String = env.get_string(&target).expect("Couldn't get java string!").into();
+    let target_str: String = env
+        .get_string(&target)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.remove_blacklist(&target_str, is_domain != 0);
 }
@@ -135,7 +152,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_addGeoBlock(
     _class: JClass,
     country: JString,
 ) {
-    let country_str: String = env.get_string(&country).expect("Couldn't get java string!").into();
+    let country_str: String = env
+        .get_string(&country)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.add_geo_block(country_str);
 }
@@ -146,7 +166,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_removeGeoBlock(
     _class: JClass,
     country: JString,
 ) {
-    let country_str: String = env.get_string(&country).expect("Couldn't get java string!").into();
+    let country_str: String = env
+        .get_string(&country)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.remove_geo_block(country_str);
 }
@@ -232,13 +255,13 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setBatterySafeguard(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_netheal_bridge_RustBridge_setJulesActive(
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_setAiActive(
     _env: JNIEnv,
     _class: JClass,
     active: jboolean,
 ) {
     let mut engine = ENGINE.lock().unwrap();
-    engine.set_jules_active(active != 0);
+    engine.set_ai_active(active != 0);
 }
 
 #[no_mangle]
@@ -258,7 +281,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_updateAiRisk(
     package_name: JString,
     score: jint,
 ) {
-    let pkg: String = env.get_string(&package_name).expect("Couldn't get java string!").into();
+    let pkg: String = env
+        .get_string(&package_name)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.update_ai_risk(pkg, score as u8);
 }
@@ -270,8 +296,14 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_applyDpiScript(
     pattern: JString,
     action: JString,
 ) {
-    let p_str: String = env.get_string(&pattern).expect("Couldn't get java string!").into();
-    let a_str: String = env.get_string(&action).expect("Couldn't get java string!").into();
+    let p_str: String = env
+        .get_string(&pattern)
+        .expect("Couldn't get java string!")
+        .into();
+    let a_str: String = env
+        .get_string(&action)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.apply_dpi_script(p_str, a_str);
 }
@@ -330,7 +362,9 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAnalytics(
 ) -> jbyteArray {
     let engine = ENGINE.lock().unwrap();
     let analytics = engine.get_analytics_json();
-    env.byte_array_from_slice(analytics.as_bytes()).unwrap().into_raw()
+    env.byte_array_from_slice(analytics.as_bytes())
+        .unwrap()
+        .into_raw()
 }
 
 #[no_mangle]
@@ -343,10 +377,7 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_recordHeartbeat(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_netheal_bridge_RustBridge_clearLogs(
-    _env: JNIEnv,
-    _class: JClass,
-) {
+pub extern "system" fn Java_com_netheal_bridge_RustBridge_clearLogs(_env: JNIEnv, _class: JClass) {
     let mut engine = ENGINE.lock().unwrap();
     engine.reset_stats();
 }
@@ -357,7 +388,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_setUpstreamDns(
     _class: JClass,
     dns: JString,
 ) {
-    let dns_str: String = env.get_string(&dns).expect("Couldn't get java string!").into();
+    let dns_str: String = env
+        .get_string(&dns)
+        .expect("Couldn't get java string!")
+        .into();
     let mut engine = ENGINE.lock().unwrap();
     engine.set_upstream_dns(&dns_str);
 }
@@ -375,7 +409,11 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_handlePacket(
         let data_i8: Vec<i8> = data_u8.into_iter().map(|b| b as i8).collect();
         env.set_byte_array_region(&packet, 0, &data_i8).unwrap();
     }
-    if allowed { 1 } else { 0 }
+    if allowed {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -395,7 +433,10 @@ pub extern "system" fn Java_com_netheal_bridge_RustBridge_getAppRule(
     _class: JClass,
     app_id: JString,
 ) -> jint {
-    let app_id_str: String = env.get_string(&app_id).expect("Couldn't get java string!").into();
+    let app_id_str: String = env
+        .get_string(&app_id)
+        .expect("Couldn't get java string!")
+        .into();
     let engine = ENGINE.lock().unwrap();
     engine.get_app_rule(&app_id_str) as jint
 }
